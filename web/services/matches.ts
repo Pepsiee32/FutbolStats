@@ -77,6 +77,16 @@ export const matchesApi = {
       delete payload.isMvp;
     }
 
+    // Obtener el usuario actual para asegurar que tenemos una sesión válida
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error("Debes estar autenticado para crear un partido");
+    }
+
+    // El user_id se asignará automáticamente por el trigger en la base de datos
+    // No es necesario (y no es seguro) pasarlo desde el cliente
+    // El trigger usará auth.uid() automáticamente
+
     const { data, error } = await supabase
       .from("matches")
       .insert(payload)

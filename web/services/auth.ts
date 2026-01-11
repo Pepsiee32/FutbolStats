@@ -4,9 +4,30 @@ export type MeResponse = { id: string; email: string };
 
 export const auth = {
   register: async (email: string, password: string): Promise<void> => {
+    const redirectUrl =
+      typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: redirectUrl
+        ? {
+            emailRedirectTo: redirectUrl,
+          }
+        : undefined,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  },
+
+  resetPassword: async (email: string): Promise<void> => {
+    const redirectUrl =
+      typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
     });
 
     if (error) {

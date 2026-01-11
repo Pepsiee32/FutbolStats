@@ -24,15 +24,23 @@ Para obtener las keys:
 
 1. Ve a Authentication > Providers en Supabase
 2. Asegúrate de que "Email" esté habilitado
-3. Configura las URLs de redirección:
+3. **Desactivar confirmación de email** (opcional pero recomendado):
+   - Ve a Authentication > Settings
+   - Desactiva "Enable email confirmations"
+   - Esto permite que los usuarios se registren sin confirmar el email
+4. Configura las URLs de redirección:
    - Development: `http://localhost:3000`
    - Production: `https://tu-dominio.vercel.app`
+   - Recovery (recuperación de contraseña): `https://tu-dominio.vercel.app/reset-password`
 
 ## Paso 4: Crear Esquema de Base de Datos
 
 1. Ve a SQL Editor en Supabase
-2. Ejecuta el script `supabase/migrations/001_create_matches.sql`
-3. Verifica que la tabla `matches` se haya creado correctamente
+2. Ejecuta los scripts de migración en orden:
+   - Primero: `supabase/migrations/002_create_profiles.sql` (tabla de perfiles de usuario)
+   - Segundo: `supabase/migrations/001_create_matches.sql` (tabla de partidos)
+   - Tercero: `supabase/migrations/003_fix_matches_user_id.sql` (trigger para asignar user_id automáticamente)
+3. Verifica que ambas tablas se hayan creado correctamente
 
 ## Paso 5: Migrar Datos
 
@@ -51,5 +59,12 @@ Sigue las instrucciones en `supabase/migrate-data.md` para migrar usuarios y par
 
 1. Inicia el servidor de desarrollo: `npm run dev` en `web/`
 2. Intenta registrarte con un nuevo usuario
-3. Verifica que puedas crear partidos
-4. Verifica que solo veas tus propios partidos (RLS)
+3. Verifica que se haya creado automáticamente un perfil en la tabla `profiles`
+4. Verifica que puedas crear partidos
+5. Verifica que solo veas tus propios partidos (RLS)
+
+## Estructura de Tablas
+
+- **auth.users**: Usuarios de autenticación (manejado automáticamente por Supabase)
+- **profiles**: Información adicional del usuario (email, nombre, avatar, etc.)
+- **matches**: Partidos registrados por cada usuario
