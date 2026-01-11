@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
+// Forzar renderizado dinámico para evitar pre-render durante el build
+export const dynamic = 'force-dynamic';
+
 export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -18,6 +21,11 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     // Intercambiar el token de la URL por una sesión
     const handleTokenExchange = async () => {
+      // Verificar que estamos en el cliente
+      if (typeof window === 'undefined') {
+        return;
+      }
+
       try {
         // Leer el hash de la URL
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -46,7 +54,9 @@ export default function ResetPasswordPage() {
           if (session) {
             setValidToken(true);
             // Limpiar el hash de la URL para seguridad
-            window.history.replaceState(null, "", window.location.pathname);
+            if (typeof window !== 'undefined') {
+              window.history.replaceState(null, "", window.location.pathname);
+            }
           } else {
             setMsg("Error ❌ No se pudo establecer la sesión");
           }
