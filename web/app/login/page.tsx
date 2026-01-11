@@ -88,9 +88,10 @@ export default function LoginPage() {
                 placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500 transition-colors"
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 transition-colors"
                 required
                 disabled={loading}
+                style={{ fontSize: '16px' }}
               />
             </div>
 
@@ -103,9 +104,10 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500 transition-colors"
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 transition-colors"
                 required
                 disabled={loading}
+                style={{ fontSize: '16px' }}
               />
             </div>
 
