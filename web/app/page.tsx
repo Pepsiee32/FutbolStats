@@ -924,7 +924,8 @@ export default function HomePage() {
                   placeholder="Rival"
                   value={opponent}
                   onChange={(e) => setOpponent(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
+                  style={{ fontSize: '16px' }}
                   required
                 />
 
@@ -960,7 +961,8 @@ export default function HomePage() {
                     placeholder="Goles"
                     value={goals}
                     onChange={(e) => setGoals(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
+                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
+                    style={{ fontSize: '16px' }}
                     required
                   />
                   <input
@@ -969,7 +971,8 @@ export default function HomePage() {
                     placeholder="Asistencias"
                     value={assists}
                     onChange={(e) => setAssists(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
+                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
+                    style={{ fontSize: '16px' }}
                     required
                   />
                 </div>
@@ -1020,8 +1023,12 @@ export default function HomePage() {
                         showToast("El texto pegado excede el límite de 100 letras. Se ha limitado automáticamente.", "info");
                       }
                     }}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none resize-none"
-                    style={{ minHeight: 90, maxHeight: 90 }}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none resize-none"
+                    style={{ 
+                      minHeight: 90, 
+                      maxHeight: 90,
+                      fontSize: '16px'
+                    }}
                   />
                   <p 
                     className="text-[9px] mt-1 text-right font-bold"
@@ -1517,7 +1524,8 @@ export default function HomePage() {
                 placeholder="🔍 Buscar por rival..."
                 value={historialSearch}
                 onChange={(e) => setHistorialSearch(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500 placeholder:text-gray-500"
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 placeholder:text-gray-500"
+                style={{ fontSize: '16px' }}
               />
             </div>
 
@@ -1781,7 +1789,8 @@ export default function HomePage() {
                   placeholder="Rival"
                   value={editOpponent}
                   onChange={(e) => setEditOpponent(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
+                  style={{ fontSize: '16px' }}
                   required
                 />
 
@@ -1819,7 +1828,8 @@ export default function HomePage() {
                     placeholder="Goles"
                     value={editGoals}
                     onChange={(e) => setEditGoals(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
+                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
+                    style={{ fontSize: '16px' }}
                     required
                   />
                   <input
@@ -1828,7 +1838,8 @@ export default function HomePage() {
                     placeholder="Asistencias"
                     value={editAssists}
                     onChange={(e) => setEditAssists(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
+                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
+                    style={{ fontSize: '16px' }}
                     required
                   />
                 </div>
@@ -1879,8 +1890,12 @@ export default function HomePage() {
                         showToast("El texto pegado excede el límite de 100 letras. Se ha limitado automáticamente.", "info");
                       }
                     }}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none resize-none"
-                    style={{ minHeight: 90, maxHeight: 90 }}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none resize-none"
+                    style={{ 
+                      minHeight: 90, 
+                      maxHeight: 90,
+                      fontSize: '16px'
+                    }}
                   />
                   <p 
                     className="text-[9px] mt-1 text-right font-bold"

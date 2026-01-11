@@ -189,10 +189,11 @@ export default function NewMatchPage() {
               value={opponent}
               onChange={(e) => setOpponent(e.target.value)}
               placeholder="Rival / Cancha"
-              className="w-full rounded-xl p-3 text-sm outline-none text-white placeholder-gray-400"
+              className="w-full rounded-xl p-3 text-base outline-none text-white placeholder-gray-400"
               style={{
                 background: "rgba(255, 255, 255, 0.05)",
                 border: "1px solid rgba(255, 255, 255, 0.1)",
+                fontSize: '16px',
               }}
             />
 
@@ -287,10 +288,11 @@ export default function NewMatchPage() {
                 value={goals}
                 onChange={(e) => setGoals(e.target.value === "" ? "" : Number(e.target.value))}
                 placeholder="Goles"
-                className="w-full rounded-xl p-3 text-sm outline-none text-white placeholder-gray-400"
+                className="w-full rounded-xl p-3 text-base outline-none text-white placeholder-gray-400"
                 style={{
                   background: "rgba(255, 255, 255, 0.05)",
                   border: "1px solid rgba(255, 255, 255, 0.1)",
+                  fontSize: '16px',
                 }}
               />
 
@@ -300,10 +302,11 @@ export default function NewMatchPage() {
                 value={assists}
                 onChange={(e) => setAssists(e.target.value === "" ? "" : Number(e.target.value))}
                 placeholder="Asist"
-                className="w-full rounded-xl p-3 text-sm outline-none text-white placeholder-gray-400"
+                className="w-full rounded-xl p-3 text-base outline-none text-white placeholder-gray-400"
                 style={{
                   background: "rgba(255, 255, 255, 0.05)",
                   border: "1px solid rgba(255, 255, 255, 0.1)",
+                  fontSize: '16px',
                 }}
               />
             </div>
@@ -312,11 +315,12 @@ export default function NewMatchPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={`ej: "gol de chilena" o "partido chivo"`}
-              className="w-full rounded-xl p-3 text-sm outline-none text-white placeholder-gray-400"
+              className="w-full rounded-xl p-3 text-base outline-none text-white placeholder-gray-400"
               style={{
                 background: "rgba(255, 255, 255, 0.05)",
                 border: "1px solid rgba(255, 255, 255, 0.1)",
                 minHeight: 110,
+                fontSize: '16px',
               }}
             />
 
