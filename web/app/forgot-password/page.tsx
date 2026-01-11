@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/services/auth";
+import { translateError } from "@/utils/errorTranslations";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -27,7 +28,8 @@ export default function ForgotPasswordPage() {
       setEmailSent(true);
       setMsg("✅ Email enviado correctamente");
     } catch (e: any) {
-      setMsg(`Error ❌ ${e.message ?? e}`);
+      const errorMessage = e.message ?? String(e) ?? "Error desconocido";
+      setMsg(`Error ❌ ${translateError(errorMessage)}`);
     } finally {
       setLoading(false);
     }

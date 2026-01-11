@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { translateError } from "@/utils/errorTranslations";
 
 export type MeResponse = { id: string; email: string };
 
@@ -18,7 +19,7 @@ export const auth = {
     });
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
   },
 
@@ -31,7 +32,7 @@ export const auth = {
     });
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
   },
 
@@ -42,7 +43,7 @@ export const auth = {
     });
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
   },
 
@@ -50,7 +51,7 @@ export const auth = {
     const { data: { user }, error } = await supabase.auth.getUser();
 
     if (error || !user) {
-      throw new Error(error?.message || "Usuario no autenticado");
+      throw new Error(translateError(error?.message || "Usuario no autenticado"));
     }
 
     return {
@@ -63,7 +64,7 @@ export const auth = {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
   },
 };

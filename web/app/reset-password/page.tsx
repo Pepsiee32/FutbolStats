@@ -4,6 +4,7 @@ import { useState, FormEvent, useEffect, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { translateError } from "@/utils/errorTranslations";
 
 // Forzar renderizado dinámico para evitar pre-render durante el build
 export const dynamic = 'force-dynamic';
@@ -46,7 +47,7 @@ function ResetPasswordContent() {
 
           if (error) {
             console.error("Error al establecer sesión:", error);
-            setMsg("Error ❌ Enlace inválido o expirado. Por favor solicita un nuevo enlace.");
+            setMsg(`Error ❌ ${translateError(error.message)}`);
             return;
           }
 
@@ -127,7 +128,7 @@ function ResetPasswordContent() {
       });
 
       if (error) {
-        throw error;
+        throw new Error(translateError(error.message));
       }
 
       setMsg("✅ Contraseña actualizada correctamente. Redirigiendo...");
@@ -135,7 +136,8 @@ function ResetPasswordContent() {
         router.push("/login");
       }, 2000);
     } catch (e: any) {
-      setMsg(`Error ❌ ${e.message ?? e}`);
+      const errorMessage = e.message ?? String(e) ?? "Error desconocido";
+      setMsg(`Error ❌ ${translateError(errorMessage)}`);
     } finally {
       setLoading(false);
     }

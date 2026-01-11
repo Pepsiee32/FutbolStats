@@ -1,5 +1,6 @@
 // web/services/matches.ts
 import { supabase } from "@/lib/supabase";
+import { translateError } from "@/utils/errorTranslations";
 
 export type Match = {
   id: string;
@@ -38,7 +39,7 @@ export const matchesApi = {
       .order("date", { ascending: false });
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
 
     // Mapear is_mvp a isMvp para compatibilidad
@@ -56,7 +57,7 @@ export const matchesApi = {
       .single();
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
 
     if (!data) {
@@ -94,7 +95,7 @@ export const matchesApi = {
       .single();
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
 
     if (!data) {
@@ -123,7 +124,7 @@ export const matchesApi = {
       .single();
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
 
     if (!data) {
@@ -143,7 +144,7 @@ export const matchesApi = {
       .eq("id", id);
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(translateError(error.message));
     }
   },
 };

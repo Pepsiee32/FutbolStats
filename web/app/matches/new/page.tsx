@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/services/auth";
 import { matchesApi, type CreateMatchRequest } from "@/services/matches";
+import { translateError } from "@/utils/errorTranslations";
 
 function resultToNumber(v: string): number | null {
   // UI: "win" | "draw" | "loss" | ""
@@ -71,7 +72,8 @@ export default function NewMatchPage() {
       setMsg("OK ✅ Guardado");
       router.push("/");
     } catch (e: any) {
-      setMsg(`Error ❌ ${e.message ?? e}`);
+      const errorMessage = e.message ?? String(e) ?? "Error desconocido";
+      setMsg(`Error ❌ ${translateError(errorMessage)}`);
     } finally {
       setSaving(false);
     }

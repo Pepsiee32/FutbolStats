@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./providers/AuthProvider";
 import { matchesApi, type Match, resultLabel, type CreateMatchRequest } from "@/services/matches";
+import { translateError } from "@/utils/errorTranslations";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -163,7 +164,8 @@ export default function HomePage() {
       const data = await matchesApi.list();
       setItems(data);
     } catch (e: any) {
-      showToast(e.message ?? "Error al cargar los partidos", "error");
+      const errorMessage = e.message ?? "Error al cargar los partidos";
+      showToast(translateError(errorMessage), "error");
     }
   }
 
@@ -271,8 +273,29 @@ export default function HomePage() {
       }
     }
 
+    // Calculate Messi 91: goles en el año actual
+    const currentYear = new Date().getFullYear();
+    let goalsInCurrentYear = 0;
+    
+    for (const match of items) {
+      try {
+        const matchDate = new Date(match.date);
+        const year = matchDate.getFullYear();
+        if (year === currentYear) {
+          goalsInCurrentYear += (match.goals ?? 0);
+        }
+      } catch {
+        // Si hay error al parsear la fecha, ignorar ese partido
+      }
+    }
+
     return {
-      messi91: { current: totalGoals, target: 91, unlocked: totalGoals >= 91 },
+      messi91: { 
+        current: goalsInCurrentYear, 
+        target: 91, 
+        unlocked: goalsInCurrentYear >= 91,
+        year: currentYear 
+      },
       invencible: { streak: maxStreak, unlocked: maxStreak >= 5 },
       mvp: { current: totalMVPs, target: 10, unlocked: totalMVPs >= 10 },
       // Nuevos logros
@@ -342,7 +365,8 @@ export default function HomePage() {
       await load();
       showToast("Partido guardado exitosamente", "success");
     } catch (e: any) {
-      showToast(e.message ?? "Error al guardar el partido", "error");
+      const errorMessage = e.message ?? "Error al guardar el partido";
+      showToast(translateError(errorMessage), "error");
     }
   }
 
@@ -367,7 +391,8 @@ export default function HomePage() {
       setEditId(id);
       setEditLoading(false);
     } catch (e: any) {
-      showToast(e.message ?? "Error al cargar el partido", "error");
+      const errorMessage = e.message ?? "Error al cargar el partido";
+      showToast(translateError(errorMessage), "error");
       setEditLoading(false);
     }
   }
@@ -445,7 +470,8 @@ export default function HomePage() {
       closeEditModal();
       showToast("Partido actualizado exitosamente", "success");
     } catch (e: any) {
-      showToast(e.message ?? "Error al actualizar el partido", "error");
+      const errorMessage = e.message ?? "Error al actualizar el partido";
+      showToast(translateError(errorMessage), "error");
     }
   }
 
@@ -632,6 +658,7 @@ export default function HomePage() {
                 <div
                   className="fixed inset-0 z-[60]"
                   onClick={() => setUserMenuOpen(false)}
+                  style={{ pointerEvents: 'auto' }}
                 />
                 {/* Menu */}
                 <div
@@ -640,7 +667,9 @@ export default function HomePage() {
                     background: "rgba(10, 25, 10, 0.95)",
                     border: "1px solid rgba(255,255,255,0.1)",
                     boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+                    pointerEvents: 'auto',
                   }}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <div className="p-4 border-b border-white/10">
                     <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black mb-1">
@@ -649,7 +678,8 @@ export default function HomePage() {
                     <p className="text-sm font-bold text-white">{me.email}</p>
                   </div>
                   <button
-                    onClick={async () => {
+                    onClick={async (e) => {
+                      e.stopPropagation(); // Prevenir que el backdrop capture el click
                       try {
                         await logout();
                         router.push("/login");
@@ -659,7 +689,11 @@ export default function HomePage() {
                         }
                       }
                     }}
-                    className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 transition-colors rounded-b-2xl"
+                    className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 transition-colors rounded-b-2xl relative z-[80] touch-manipulation"
+                    style={{ 
+                      WebkitTapHighlightColor: 'transparent',
+                      touchAction: 'manipulation'
+                    }}
                   >
                     Cerrar Sesión
                   </button>
@@ -1144,8 +1178,8 @@ export default function HomePage() {
                     }}
                   />
                 </div>
-                <p className="text-[8px] mt-1 font-bold">
-                  {achievements.messi91.current} / 91
+                <p className="text-[9px] font-black text-green-500 mt-1">
+                  Goles en la Temporada {achievements.messi91.year}: {achievements.messi91.current}
                 </p>
               </div>
 
@@ -1522,7 +1556,8 @@ export default function HomePage() {
                           await load();
                           showToast("Partido eliminado exitosamente", "success");
                         } catch (e: any) {
-                          showToast(e.message ?? "Error al eliminar el partido", "error");
+                          const errorMessage = e.message ?? "Error al eliminar el partido";
+                          showToast(translateError(errorMessage), "error");
                         } finally {
                           setBusyId(null);
                         }

@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/services/auth";
+import { translateError } from "@/utils/errorTranslations";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -56,7 +57,8 @@ export default function RegisterPage() {
         router.push("/login");
       }, 1500);
     } catch (e: any) {
-      setMsg(`Error ❌ ${e.message ?? e}`);
+      const errorMessage = e.message ?? String(e) ?? "Error desconocido";
+      setMsg(`Error ❌ ${translateError(errorMessage)}`);
     } finally {
       setLoading(false);
     }
