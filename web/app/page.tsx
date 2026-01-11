@@ -68,6 +68,32 @@ export default function HomePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   
+  // Handler para logout que funciona en Safari
+  const handleLogout = async (e: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>) => {
+    // Prevenir doble clicks
+    if (isLoggingOut) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    e.stopPropagation();
+    e.preventDefault();
+    
+    setIsLoggingOut(true);
+    setUserMenuOpen(false);
+    
+    try {
+      await logout();
+      router.push("/login");
+    } catch (error: any) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("Error al cerrar sesión:", error);
+      }
+      setIsLoggingOut(false);
+    }
+  };
+  
   // Stats filters
   const [statsFilter, setStatsFilter] = useState<number | "all">("all");
   const [statsSubTab, setStatsSubTab] = useState<"perfil" | "ataque" | "canchas">("perfil");
@@ -679,7 +705,8 @@ export default function HomePage() {
               <>
                 {/* Backdrop to close menu */}
                 <div
-                  className="fixed inset-0 z-[60]"
+                  className="fixed inset-0"
+                  style={{ zIndex: 60 }}
                   onClick={() => {
                     if (!isLoggingOut) {
                       setUserMenuOpen(false);
@@ -693,13 +720,16 @@ export default function HomePage() {
                 />
                 {/* Menu */}
                 <div
-                  className="absolute right-0 top-12 z-[70] min-w-[200px] rounded-2xl"
+                  className="fixed right-4 top-16 min-w-[200px] rounded-2xl"
                   style={{
                     background: "rgba(10, 25, 10, 0.95)",
                     border: "1px solid rgba(255,255,255,0.1)",
                     boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+                    zIndex: 70,
+                    pointerEvents: 'auto',
                   }}
                   onClick={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
                 >
                   <div className="p-4 border-b border-white/10">
                     <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black mb-1">
@@ -709,47 +739,32 @@ export default function HomePage() {
                   </div>
                   <button
                     onClick={async (e) => {
-                      // Prevenir doble clicks
-                      if (isLoggingOut) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-
-                      e.stopPropagation();
+                      handleLogout(e);
+                    }}
+                    onTouchEnd={async (e) => {
+                      // Para Safari, usar onTouchEnd en lugar de onClick
                       e.preventDefault();
-                      
-                      setIsLoggingOut(true);
-                      setUserMenuOpen(false);
-                      
-                      try {
-                        await logout();
-                        router.push("/login");
-                      } catch (error: any) {
-                        if (process.env.NODE_ENV === "development") {
-                          console.error("Error al cerrar sesión:", error);
-                        }
-                        setIsLoggingOut(false);
-                      }
+                      e.stopPropagation();
+                      handleLogout(e);
                     }}
                     onMouseDown={(e) => {
                       e.stopPropagation();
-                      e.preventDefault();
                     }}
                     onTouchStart={(e) => {
                       e.stopPropagation();
                     }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                    }}
-                    className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 active:bg-white/10 transition-colors rounded-b-2xl cursor-pointer relative z-[80]"
+                    className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 active:bg-white/10 transition-colors rounded-b-2xl cursor-pointer"
                     type="button"
                     disabled={isLoggingOut}
                     style={{ 
                       pointerEvents: 'auto',
                       WebkitTapHighlightColor: 'transparent',
+                      WebkitTouchCallout: 'none',
                       touchAction: 'manipulation',
-                      userSelect: 'none'
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      zIndex: 100,
+                      position: 'relative',
                     }}
                   >
                     {isLoggingOut ? "Cerrando..." : "Cerrar Sesión"}
