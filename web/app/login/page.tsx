@@ -1,18 +1,25 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../providers/AuthProvider";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, me, loading } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirigir si ya está autenticado
+  useEffect(() => {
+    if (!loading && me) {
+      router.replace("/");
+    }
+  }, [me, loading, router]);
 
   async function onLogin(e: FormEvent) {
     e.preventDefault();
@@ -22,7 +29,7 @@ export default function LoginPage() {
     }
 
     try {
-      setLoading(true);
+      setIsSubmitting(true);
       setMsg("Iniciando sesión...");
       await login(email, password);
       setMsg("Verificando sesión...");
@@ -35,7 +42,7 @@ export default function LoginPage() {
       const errorMessage = e.message ?? String(e) ?? "Error desconocido";
       setMsg(`Error ❌ ${errorMessage}`);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   }
 
@@ -90,7 +97,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 transition-colors"
                 required
-                disabled={loading}
+                disabled={isSubmitting || loading}
                 style={{ fontSize: '16px' }}
               />
             </div>
@@ -106,7 +113,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 transition-colors"
                 required
-                disabled={loading}
+                disabled={isSubmitting || loading}
                 style={{ fontSize: '16px' }}
               />
             </div>
@@ -130,7 +137,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={isSubmitting || loading}
               className="w-full text-black font-black py-4 rounded-xl uppercase text-xs tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: "#22c55e" }}
             >

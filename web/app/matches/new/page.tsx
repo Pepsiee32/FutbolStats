@@ -17,7 +17,30 @@ function resultToNumber(v: string): number | null {
 export default function NewMatchPage() {
   const router = useRouter();
 
-  const [date, setDate] = useState("");
+  // Get today's date
+  const getTodayDate = () => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // Get max date (today) for date inputs
+  const getMaxDate = () => {
+    return getTodayDate();
+  };
+
+  // Validar que la fecha no sea futura
+  const isValidDate = (dateValue: string): boolean => {
+    if (!dateValue) return false;
+    const selectedDate = new Date(dateValue);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Fin del día de hoy
+    return selectedDate <= today;
+  };
+
+  const [date, setDate] = useState(getTodayDate());
   const [opponent, setOpponent] = useState("");
   const [format, setFormat] = useState<number | "">(8);
   const [goals, setGoals] = useState<number | "">("");
@@ -49,6 +72,13 @@ export default function NewMatchPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSave) return;
+
+    // Validar que la fecha no sea futura
+    if (!isValidDate(date)) {
+      setMsg("Error ❌ No puedes registrar partidos con fecha futura");
+      setDate(getTodayDate());
+      return;
+    }
 
     try {
       setSaving(true);
@@ -204,13 +234,25 @@ export default function NewMatchPage() {
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  if (isValidDate(newDate)) {
+                    setDate(newDate);
+                  } else {
+                    setMsg("Error ❌ No puedes seleccionar una fecha futura");
+                    setDate(getTodayDate());
+                  }
+                }}
+                max={getMaxDate()}
                 required
                 className="w-full rounded-xl p-3 text-sm outline-none text-white"
                 style={{
                   background: "rgba(255, 255, 255, 0.05)",
                   border: "1px solid rgba(255, 255, 255, 0.1)",
                   colorScheme: "dark",
+                  fontSize: '16px',
+                  paddingLeft: '12px',
+                  paddingRight: '12px',
                 }}
               />
 

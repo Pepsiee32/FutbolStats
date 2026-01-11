@@ -119,6 +119,15 @@ export default function HomePage() {
     return getTodayDate();
   };
 
+  // Validar que la fecha no sea futura
+  const isValidDate = (dateValue: string): boolean => {
+    if (!dateValue) return false;
+    const selectedDate = new Date(dateValue);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // Fin del día de hoy
+    return selectedDate <= today;
+  };
+
   const [date, setDate] = useState(getTodayDate());
   const [opponent, setOpponent] = useState("");
   const [format, setFormat] = useState<number>(5);
@@ -315,6 +324,13 @@ export default function HomePage() {
       showToast("La fecha es requerida", "error");
       return;
     }
+
+    // Validar que la fecha no sea futura
+    if (!isValidDate(date)) {
+      showToast("No puedes registrar partidos con fecha futura", "error");
+      setDate(getTodayDate());
+      return;
+    }
     
     if (!opponent || !opponent.trim()) {
       showToast("El rival es requerido", "error");
@@ -416,6 +432,12 @@ export default function HomePage() {
     // Validación de campos requeridos (igual que en onSave)
     if (!editDate || !editDate.trim()) {
       showToast("La fecha es requerida", "error");
+      return;
+    }
+
+    // Validar que la fecha no sea futura
+    if (!isValidDate(editDate)) {
+      showToast("No puedes registrar partidos con fecha futura", "error");
       return;
     }
     
@@ -675,35 +697,43 @@ export default function HomePage() {
                     </p>
                     <p className="text-sm font-bold text-white">{me.email}</p>
                   </div>
-                  <div className="relative z-[80]">
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setUserMenuOpen(false);
-                        try {
-                          await logout();
-                          router.push("/login");
-                        } catch (error: any) {
-                          if (process.env.NODE_ENV === "development") {
-                            console.error("Error al cerrar sesión:", error);
-                          }
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      const wasOpen = userMenuOpen;
+                      setUserMenuOpen(false);
+                      
+                      // Pequeño delay para que el menú se cierre visualmente
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      
+                      try {
+                        await logout();
+                        router.push("/login");
+                      } catch (error: any) {
+                        if (process.env.NODE_ENV === "development") {
+                          console.error("Error al cerrar sesión:", error);
                         }
-                      }}
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                      }}
-                      className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 active:bg-white/10 transition-colors rounded-b-2xl cursor-pointer"
-                      type="button"
-                      style={{ 
-                        pointerEvents: 'auto',
-                        WebkitTapHighlightColor: 'transparent'
-                      }}
-                    >
-                      Cerrar Sesión
-                    </button>
-                  </div>
+                        // Si falla, restaurar el menú
+                        setUserMenuOpen(wasOpen);
+                      }
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onTouchStart={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 active:bg-white/10 transition-colors rounded-b-2xl cursor-pointer relative z-[80]"
+                    type="button"
+                    style={{ 
+                      pointerEvents: 'auto',
+                      WebkitTapHighlightColor: 'transparent',
+                      touchAction: 'manipulation'
+                    }}
+                  >
+                    Cerrar Sesión
+                  </button>
                 </div>
               </>
             )}
@@ -833,7 +863,16 @@ export default function HomePage() {
                 <input
                   type="date"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    if (isValidDate(newDate)) {
+                      setDate(newDate);
+                    } else {
+                      showToast("No puedes seleccionar una fecha futura", "error");
+                      // Resetear a la fecha de hoy si intenta poner una fecha futura
+                      setDate(getTodayDate());
+                    }
+                  }}
                   max={getMaxDate()}
                   className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
                   style={{ 
@@ -1677,7 +1716,25 @@ export default function HomePage() {
                       paddingRight: '12px',
                       WebkitAppearance: 'none'
                     }}
-                    onChange={(e) => setEditDate(e.target.value)}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      if (isValidDate(newDate)) {
+                        setEditDate(newDate);
+                      } else {
+                        showToast("No puedes seleccionar una fecha futura", "error");
+                        // Resetear a la fecha original si intenta poner una fecha futura
+                        const originalMatch = items.find(m => m.id === editId);
+                        if (originalMatch) {
+                          const originalDate = new Date(originalMatch.date);
+                          const yyyy = originalDate.getFullYear();
+                          const mm = String(originalDate.getMonth() + 1).padStart(2, "0");
+                          const dd = String(originalDate.getDate()).padStart(2, "0");
+                          setEditDate(`${yyyy}-${mm}-${dd}`);
+                        } else {
+                          setEditDate(getTodayDate());
+                        }
+                      }
+                    }}
                     max={getMaxDate()}
                     required
                     className="mt-2 w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
