@@ -65,6 +65,7 @@ export default function HomePage() {
   const [msg, setMsg] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   
   // Stats filters
@@ -679,7 +680,16 @@ export default function HomePage() {
                 {/* Backdrop to close menu */}
                 <div
                   className="fixed inset-0 z-[60]"
-                  onClick={() => setUserMenuOpen(false)}
+                  onClick={() => {
+                    if (!isLoggingOut) {
+                      setUserMenuOpen(false);
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    if (!isLoggingOut) {
+                      e.stopPropagation();
+                    }
+                  }}
                 />
                 {/* Menu */}
                 <div
@@ -699,13 +709,18 @@ export default function HomePage() {
                   </div>
                   <button
                     onClick={async (e) => {
+                      // Prevenir doble clicks
+                      if (isLoggingOut) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+
                       e.stopPropagation();
                       e.preventDefault();
-                      const wasOpen = userMenuOpen;
-                      setUserMenuOpen(false);
                       
-                      // Pequeño delay para que el menú se cierre visualmente
-                      await new Promise(resolve => setTimeout(resolve, 100));
+                      setIsLoggingOut(true);
+                      setUserMenuOpen(false);
                       
                       try {
                         await logout();
@@ -714,25 +729,30 @@ export default function HomePage() {
                         if (process.env.NODE_ENV === "development") {
                           console.error("Error al cerrar sesión:", error);
                         }
-                        // Si falla, restaurar el menú
-                        setUserMenuOpen(wasOpen);
+                        setIsLoggingOut(false);
                       }
                     }}
                     onMouseDown={(e) => {
                       e.stopPropagation();
+                      e.preventDefault();
                     }}
                     onTouchStart={(e) => {
                       e.stopPropagation();
                     }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                    }}
                     className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 active:bg-white/10 transition-colors rounded-b-2xl cursor-pointer relative z-[80]"
                     type="button"
+                    disabled={isLoggingOut}
                     style={{ 
                       pointerEvents: 'auto',
                       WebkitTapHighlightColor: 'transparent',
-                      touchAction: 'manipulation'
+                      touchAction: 'manipulation',
+                      userSelect: 'none'
                     }}
                   >
-                    Cerrar Sesión
+                    {isLoggingOut ? "Cerrando..." : "Cerrar Sesión"}
                   </button>
                 </div>
               </>
