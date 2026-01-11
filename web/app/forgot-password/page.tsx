@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
       <nav className="bg-black/60 border-b border-white/10 p-4 backdrop-blur-md">
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-xl font-black italic uppercase tracking-tighter">
-            Fut<span style={{ color: "#22c55e" }}>Stats</span> PRO
+            Fut<span style={{ color: "#22c55e" }}>Stats</span>
           </h1>
         </div>
       </nav>

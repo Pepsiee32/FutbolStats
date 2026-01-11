@@ -640,7 +640,7 @@ export default function HomePage() {
       <nav className="bg-black/60 border-b border-white/10 p-4 sticky top-0 z-50 backdrop-blur-md">
         <div className="container mx-auto flex justify-between items-center">
           <h1 className="text-xl font-black italic uppercase tracking-tighter">
-            Fut<span style={{ color: "#22c55e" }}>Stats</span> PRO
+            Fut<span style={{ color: "#22c55e" }}>Stats</span>
           </h1>
           <div className="flex items-center gap-3 relative">
             <button
@@ -658,7 +658,6 @@ export default function HomePage() {
                 <div
                   className="fixed inset-0 z-[60]"
                   onClick={() => setUserMenuOpen(false)}
-                  style={{ pointerEvents: 'auto' }}
                 />
                 {/* Menu */}
                 <div
@@ -667,7 +666,6 @@ export default function HomePage() {
                     background: "rgba(10, 25, 10, 0.95)",
                     border: "1px solid rgba(255,255,255,0.1)",
                     boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-                    pointerEvents: 'auto',
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -679,21 +677,20 @@ export default function HomePage() {
                   </div>
                   <button
                     onClick={async (e) => {
-                      e.stopPropagation(); // Prevenir que el backdrop capture el click
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setUserMenuOpen(false);
                       try {
                         await logout();
                         router.push("/login");
-                      } catch (e: any) {
+                      } catch (error: any) {
                         if (process.env.NODE_ENV === "development") {
-                          console.error("Error al cerrar sesión:", e);
+                          console.error("Error al cerrar sesión:", error);
                         }
                       }
                     }}
-                    className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 transition-colors rounded-b-2xl relative z-[80] touch-manipulation"
-                    style={{ 
-                      WebkitTapHighlightColor: 'transparent',
-                      touchAction: 'manipulation'
-                    }}
+                    className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 transition-colors rounded-b-2xl"
+                    type="button"
                   >
                     Cerrar Sesión
                   </button>

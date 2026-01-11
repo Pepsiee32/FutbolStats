@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FutStats Pro", 
+  title: "FutStats", 
   description: "Estadísticas de fútbol amateur",
 };
 
