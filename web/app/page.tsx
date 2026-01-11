@@ -675,25 +675,35 @@ export default function HomePage() {
                     </p>
                     <p className="text-sm font-bold text-white">{me.email}</p>
                   </div>
-                  <button
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      setUserMenuOpen(false);
-                      try {
-                        await logout();
-                        router.push("/login");
-                      } catch (error: any) {
-                        if (process.env.NODE_ENV === "development") {
-                          console.error("Error al cerrar sesión:", error);
+                  <div className="relative z-[80]">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setUserMenuOpen(false);
+                        try {
+                          await logout();
+                          router.push("/login");
+                        } catch (error: any) {
+                          if (process.env.NODE_ENV === "development") {
+                            console.error("Error al cerrar sesión:", error);
+                          }
                         }
-                      }
-                    }}
-                    className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 transition-colors rounded-b-2xl"
-                    type="button"
-                  >
-                    Cerrar Sesión
-                  </button>
+                      }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                      }}
+                      className="w-full p-4 text-left text-sm font-bold text-red-400 hover:bg-white/5 active:bg-white/10 transition-colors rounded-b-2xl cursor-pointer"
+                      type="button"
+                      style={{ 
+                        pointerEvents: 'auto',
+                        WebkitTapHighlightColor: 'transparent'
+                      }}
+                    >
+                      Cerrar Sesión
+                    </button>
+                  </div>
                 </div>
               </>
             )}
@@ -826,6 +836,12 @@ export default function HomePage() {
                   onChange={(e) => setDate(e.target.value)}
                   max={getMaxDate()}
                   className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
+                  style={{ 
+                    fontSize: '16px',
+                    paddingLeft: '12px',
+                    paddingRight: '12px',
+                    WebkitAppearance: 'none'
+                  }}
                   required
                 />
 
@@ -1655,6 +1671,12 @@ export default function HomePage() {
                   <input
                     type="date"
                     value={editDate}
+                    style={{ 
+                      fontSize: '16px',
+                      paddingLeft: '12px',
+                      paddingRight: '12px',
+                      WebkitAppearance: 'none'
+                    }}
                     onChange={(e) => setEditDate(e.target.value)}
                     max={getMaxDate()}
                     required
