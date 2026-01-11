@@ -1,16 +1,15 @@
 "use client";
 
-import { useState, FormEvent, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, FormEvent, useEffect, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 // Forzar renderizado dinámico para evitar pre-render durante el build
 export const dynamic = 'force-dynamic';
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -294,5 +293,19 @@ export default function ResetPasswordPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen text-white font-sans flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-400">Cargando...</p>
+        </div>
+      </div>
+    }>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
