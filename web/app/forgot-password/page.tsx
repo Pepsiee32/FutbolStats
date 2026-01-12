@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/services/auth";
@@ -13,6 +13,20 @@ export default function ForgotPasswordPage() {
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+
+  // Redirigir si el usuario ya está autenticado
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        await auth.me();
+        // Si el usuario está autenticado, redirigir al inicio
+        router.replace("/");
+      } catch {
+        // Usuario no autenticado, puede continuar
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -148,24 +162,26 @@ export default function ForgotPasswordPage() {
                 </div>
               </div>
 
-              <Link
-                href="/login"
+              <button
+                onClick={() => router.push("/login")}
                 className="block w-full text-center text-black font-black py-4 rounded-xl uppercase text-xs tracking-widest transition-all"
                 style={{ background: "#22c55e" }}
               >
                 Volver al Login
-              </Link>
+              </button>
             </div>
           )}
 
-          <div className="text-center pt-4 border-t border-white/10">
-            <Link
-              href="/login"
-              className="text-[10px] font-black uppercase text-green-400 hover:text-green-300 transition-colors"
-            >
-              ← Volver al Login
-            </Link>
-          </div>
+          {!emailSent && (
+            <div className="text-center pt-4 border-t border-white/10">
+              <button
+                onClick={() => router.push("/login")}
+                className="text-[10px] font-black uppercase text-green-400 hover:text-green-300 transition-colors"
+              >
+                ← Volver al Login
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </div>
