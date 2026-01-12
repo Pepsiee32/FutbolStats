@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Redirigir si ya está autenticado
   useEffect(() => {
@@ -106,16 +107,27 @@ export default function LoginPage() {
               <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">
                 Contraseña
               </label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 transition-colors"
-                required
-                disabled={isSubmitting || loading}
-                style={{ fontSize: '16px' }}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 pr-10 text-base outline-none focus:border-green-500 transition-colors"
+                  required
+                  disabled={isSubmitting || loading}
+                  style={{ fontSize: '16px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  disabled={isSubmitting || loading}
+                  style={{ cursor: isSubmitting || loading ? 'not-allowed' : 'pointer' }}
+                >
+                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} style={{ fontSize: 16 }}></i>
+                </button>
+              </div>
             </div>
 
             {msg && (

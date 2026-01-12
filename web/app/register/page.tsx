@@ -14,6 +14,8 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -124,34 +126,56 @@ export default function RegisterPage() {
               <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">
                 Contraseña
               </label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 transition-colors"
-                required
-                disabled={loading}
-                minLength={6}
-                style={{ fontSize: '16px' }}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 pr-10 text-base outline-none focus:border-green-500 transition-colors"
+                  required
+                  disabled={loading}
+                  minLength={6}
+                  style={{ fontSize: '16px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  disabled={loading}
+                  style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
+                >
+                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} style={{ fontSize: 16 }}></i>
+                </button>
+              </div>
             </div>
 
             <div>
               <label className="block text-[10px] font-black uppercase text-gray-400 mb-2">
                 Confirmar Contraseña
               </label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 transition-colors"
-                required
-                disabled={loading}
-                minLength={6}
-                style={{ fontSize: '16px' }}
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 pr-10 text-base outline-none focus:border-green-500 transition-colors"
+                  required
+                  disabled={loading}
+                  minLength={6}
+                  style={{ fontSize: '16px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                  disabled={loading}
+                  style={{ cursor: loading ? 'not-allowed' : 'pointer' }}
+                >
+                  <i className={`fas ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`} style={{ fontSize: 16 }}></i>
+                </button>
+              </div>
             </div>
 
             {msg && (
