@@ -384,6 +384,13 @@ export default function HomePage() {
       showToast("El rival es requerido", "error");
       return;
     }
+
+    // Validar límite de caracteres para el rival
+    const opponentLength = opponent.trim().length;
+    if (opponentLength > 50) {
+      showToast("El nombre del rival no puede exceder 50 caracteres. Tienes " + opponentLength + " caracteres.", "error");
+      return;
+    }
     
     if (goals === "" || goals === null || goals === undefined) {
       showToast("Los goles son requeridos", "error");
@@ -488,6 +495,13 @@ export default function HomePage() {
     
     if (!editOpponent || !editOpponent.trim()) {
       showToast("El rival es requerido", "error");
+      return;
+    }
+
+    // Validar límite de caracteres para el rival
+    const editOpponentLength = editOpponent.trim().length;
+    if (editOpponentLength > 50) {
+      showToast("El nombre del rival no puede exceder 50 caracteres. Tienes " + editOpponentLength + " caracteres.", "error");
       return;
     }
     
@@ -937,15 +951,37 @@ export default function HomePage() {
                   required
                 />
 
-                <input
-                  type="text"
-                  placeholder="Rival"
-                  value={opponent}
-                  onChange={(e) => setOpponent(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
-                  style={{ fontSize: '16px' }}
-                  required
-                />
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Rival"
+                    value={opponent}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.length <= 50) {
+                        setOpponent(value);
+                      } else {
+                        showToast("El nombre del rival no puede exceder 50 caracteres", "info");
+                      }
+                    }}
+                    maxLength={50}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
+                    style={{ fontSize: '16px' }}
+                    required
+                  />
+                  <p 
+                    className="text-[9px] mt-1 text-right font-bold"
+                    style={{ 
+                      color: opponent.length >= 50 ? "#ef4444" : opponent.length >= 45 ? "#fbbf24" : "#6b7280",
+                      transition: "color 0.2s"
+                    }}
+                  >
+                    {opponent.length} / 50
+                    {opponent.length >= 50 && (
+                      <span className="ml-2 text-[8px]">⚠️ Límite alcanzado</span>
+                    )}
+                  </p>
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <select
@@ -1579,7 +1615,16 @@ export default function HomePage() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-black text-base italic uppercase">
+                        <h3 
+                          className="font-black text-base italic uppercase"
+                          style={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '100%'
+                          }}
+                          title={m.opponent ?? "Sin rival"}
+                        >
                           {m.opponent ?? "Sin rival"}
                         </h3>
                         {m.isMvp && (
@@ -1798,15 +1843,37 @@ export default function HomePage() {
                   />
                 </label>
 
-                <input
-                  type="text"
-                  placeholder="Rival"
-                  value={editOpponent}
-                  onChange={(e) => setEditOpponent(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
-                  style={{ fontSize: '16px' }}
-                  required
-                />
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Rival"
+                    value={editOpponent}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value.length <= 50) {
+                        setEditOpponent(value);
+                      } else {
+                        showToast("El nombre del rival no puede exceder 50 caracteres", "info");
+                      }
+                    }}
+                    maxLength={50}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
+                    style={{ fontSize: '16px' }}
+                    required
+                  />
+                  <p 
+                    className="text-[9px] mt-1 text-right font-bold"
+                    style={{ 
+                      color: editOpponent.length >= 50 ? "#ef4444" : editOpponent.length >= 45 ? "#fbbf24" : "#6b7280",
+                      transition: "color 0.2s"
+                    }}
+                  >
+                    {editOpponent.length} / 50
+                    {editOpponent.length >= 50 && (
+                      <span className="ml-2 text-[8px]">⚠️ Límite alcanzado</span>
+                    )}
+                  </p>
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <select
