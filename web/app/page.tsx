@@ -39,11 +39,15 @@ type Tab = "inicio" | "stats" | "logros" | "historial";
 
 function fmtDate(d: string) {
   try {
-    return new Date(d).toLocaleDateString("es-AR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    // Usar UTC para evitar problemas de zona horaria
+    const date = new Date(d);
+    const day = date.getUTCDate();
+    const month = date.getUTCMonth();
+    const year = date.getUTCFullYear();
+    
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    
+    return `${day.toString().padStart(2, '0')} ${months[month]}, ${year}`;
   } catch {
     return d;
   }
@@ -52,19 +56,18 @@ function fmtDate(d: string) {
 // Función helper para convertir fecha YYYY-MM-DD a ISO string sin problemas de zona horaria
 function dateToISOString(dateString: string): string {
   // dateString viene en formato "YYYY-MM-DD"
-  // Usamos UTC para evitar problemas de zona horaria
-  const [year, month, day] = dateString.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toISOString();
+  // Simplemente agregamos "T00:00:00.000Z" para crear una fecha ISO a medianoche UTC
+  // Esto evita cualquier problema de conversión de zona horaria
+  return `${dateString}T00:00:00.000Z`;
 }
 
 // Función helper para convertir fecha ISO a formato YYYY-MM-DD sin problemas de zona horaria
 function isoToDateString(isoString: string): string {
-  // Parseamos la fecha ISO y usamos UTC para evitar problemas de zona horaria
-  const date = new Date(isoString);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  // Extraemos solo la parte de la fecha (YYYY-MM-DD) del string ISO
+  // Esto evita problemas de conversión de zona horaria
+  if (!isoString) return "";
+  const datePart = isoString.split('T')[0];
+  return datePart;
 }
 
 function cardBorderByResult(result: number | null) {
