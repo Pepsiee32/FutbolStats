@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "FutStats", 
-  description: "Estadísticas de fútbol amateur",
+  description: "Registra tus estadísticas de fútbol, analiza tu rendimiento y lleva tu juego al siguiente nivel.",
 };
 
 export default function RootLayout({
