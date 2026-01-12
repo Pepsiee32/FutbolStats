@@ -52,7 +52,6 @@
 
 - [ ] **Acceso sin autenticación**: Intentar acceder a `/` sin estar logueado
   - Verificar redirección a `/login`
-- [ ] **Acceso a `/matches/new` sin autenticación**: Verificar redirección
 
 ## 2. Pruebas de Gestión de Partidos
 
@@ -63,7 +62,7 @@
   - Verificar que se guarda correctamente
   - Verificar que aparece en la lista de partidos
   - Verificar que se actualizan las estadísticas
-- [ ] **Crear partido mínimo**: Solo con fecha (campos requeridos)
+- [ ] **Crear partido mínimo**: Solo con campos requeridos
 - [ ] **Validaciones de campos**:
   - Fecha requerida
   - Rival requerido (si aplica)
@@ -75,11 +74,6 @@
   - Goles y asistencias solo números positivos
   - Formato solo valores permitidos (5, 7, 8, 11)
   - Resultado solo valores permitidos (-1, 0, 1)
-
-### 2.2 Crear Partido (Desde `/matches/new`)
-
-- [ ] **Crear partido desde página dedicada**: Verificar funcionalidad completa
-- [ ] **Redirección después de guardar**: Verificar que redirige a `/`
 
 ### 2.3 Ver Partidos
 
