@@ -24,6 +24,18 @@ export const auth = {
   },
 
   resetPassword: async (email: string): Promise<void> => {
+    // Verificar si el email existe usando una función de base de datos
+    // Esto evita problemas con RLS y no expone datos sensibles
+    const { data: emailExists, error: functionError } = await supabase.rpc(
+      "check_email_exists",
+      { check_email: email }
+    );
+
+    // Si hay un error al ejecutar la función o el email no existe
+    if (functionError || !emailExists) {
+      throw new Error("No existe una cuenta registrada con este email");
+    }
+
     const redirectUrl =
       typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
 
