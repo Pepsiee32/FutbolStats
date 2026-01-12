@@ -28,10 +28,19 @@ Para obtener las keys:
    - Ve a Authentication > Settings
    - Desactiva "Enable email confirmations"
    - Esto permite que los usuarios se registren sin confirmar el email
-4. Configura las URLs de redirección:
-   - Development: `http://localhost:3000`
-   - Production: `https://tu-dominio.vercel.app`
-   - Recovery (recuperación de contraseña): `https://tu-dominio.vercel.app/reset-password`
+4. **Configurar URLs de redirección (MUY IMPORTANTE)**:
+   - Ve a Authentication > URL Configuration
+   - **Site URL**: Configura la URL base de tu aplicación
+     - Development: `http://localhost:3000`
+     - Production: `https://tu-dominio.vercel.app`
+   - **Redirect URLs**: Agrega TODAS las URLs permitidas (una por línea):
+     ```
+     http://localhost:3000/reset-password
+     http://localhost:3000/login
+     https://tu-dominio.vercel.app/reset-password
+     https://tu-dominio.vercel.app/login
+     ```
+   - **⚠️ IMPORTANTE**: La URL `/reset-password` DEBE estar en la lista de Redirect URLs, de lo contrario Supabase redirigirá a la Site URL por defecto (que suele ser `/login`)
 
 ## Paso 4: Crear Esquema de Base de Datos
 

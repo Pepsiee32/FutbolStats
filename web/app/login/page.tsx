@@ -15,6 +15,23 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Detectar si hay tokens de recuperación de contraseña en la URL y redirigir
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const queryParams = new URLSearchParams(window.location.search);
+    const type = hashParams.get("type") || queryParams.get("type");
+    
+    if (type === "recovery") {
+      // Si hay tokens de recuperación, redirigir a reset-password
+      const hash = window.location.hash;
+      const search = window.location.search;
+      const redirectUrl = `/reset-password${hash || search}`;
+      router.replace(redirectUrl);
+    }
+  }, [router]);
+
   // Redirigir si ya está autenticado
   useEffect(() => {
     if (!loading && me) {
