@@ -88,6 +88,7 @@ export default function HomePage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const [isInputFocused, setIsInputFocused] = useState(false);
   
   // Handler para logout que funciona en Safari
   const handleLogout = async (e: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>) => {
@@ -940,6 +941,8 @@ export default function HomePage() {
                       setDate(getTodayDate());
                     }
                   }}
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setIsInputFocused(false)}
                   max={getMaxDate()}
                   className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
                   style={{ 
@@ -964,6 +967,8 @@ export default function HomePage() {
                         showToast("El nombre del rival no puede exceder 50 caracteres", "info");
                       }
                     }}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     maxLength={50}
                     className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
                     style={{ fontSize: '16px' }}
@@ -1015,6 +1020,8 @@ export default function HomePage() {
                     placeholder="Goles"
                     value={goals}
                     onChange={(e) => setGoals(e.target.value === "" ? "" : Number(e.target.value))}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
                     style={{ fontSize: '16px' }}
                     required
@@ -1025,6 +1032,8 @@ export default function HomePage() {
                     placeholder="Asistencias"
                     value={assists}
                     onChange={(e) => setAssists(e.target.value === "" ? "" : Number(e.target.value))}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
                     style={{ fontSize: '16px' }}
                     required
@@ -1066,6 +1075,8 @@ export default function HomePage() {
                         showToast("Límite de 100 letras alcanzado", "info");
                       }
                     }}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     onPaste={(e) => {
                       e.preventDefault();
                       const pastedText = e.clipboardData.getData('text');
@@ -1578,6 +1589,8 @@ export default function HomePage() {
                 placeholder="🔍 Buscar por rival..."
                 value={historialSearch}
                 onChange={(e) => setHistorialSearch(e.target.value)}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500 placeholder:text-gray-500"
                 style={{ fontSize: '16px' }}
               />
@@ -1737,10 +1750,14 @@ export default function HomePage() {
         )}
       </main>
 
-      {/* Bottom nav */}
+      {/* Bottom nav - Ocultar cuando hay un input enfocado (teclado visible) */}
       <nav
-        className="fixed bottom-0 left-0 right-0 border-t border-white/5 px-6 pt-4 pb-8 flex justify-around rounded-t-3xl z-[100]"
-        style={{ background: "rgba(0,0,0,0.95)" }}
+        className="fixed bottom-0 left-0 right-0 border-t border-white/5 px-6 pt-4 pb-8 flex justify-around rounded-t-3xl z-[100] transition-transform duration-300"
+        style={{ 
+          background: "rgba(0,0,0,0.95)",
+          transform: isInputFocused ? "translateY(100%)" : "translateY(0)",
+          paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))"
+        }}
       >
         <button
           onClick={() => setTab("inicio")}
@@ -1837,6 +1854,8 @@ export default function HomePage() {
                         }
                       }
                     }}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     max={getMaxDate()}
                     required
                     className="mt-2 w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm outline-none focus:border-green-500"
@@ -1856,6 +1875,8 @@ export default function HomePage() {
                         showToast("El nombre del rival no puede exceder 50 caracteres", "info");
                       }
                     }}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     maxLength={50}
                     className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
                     style={{ fontSize: '16px' }}
@@ -1909,6 +1930,8 @@ export default function HomePage() {
                     placeholder="Goles"
                     value={editGoals}
                     onChange={(e) => setEditGoals(e.target.value === "" ? "" : Number(e.target.value))}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
                     style={{ fontSize: '16px' }}
                     required
@@ -1919,6 +1942,8 @@ export default function HomePage() {
                     placeholder="Asistencias"
                     value={editAssists}
                     onChange={(e) => setEditAssists(e.target.value === "" ? "" : Number(e.target.value))}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
                     style={{ fontSize: '16px' }}
                     required
@@ -1960,6 +1985,8 @@ export default function HomePage() {
                         showToast("Límite de 100 letras alcanzado", "info");
                       }
                     }}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
                     onPaste={(e) => {
                       e.preventDefault();
                       const pastedText = e.clipboardData.getData('text');
