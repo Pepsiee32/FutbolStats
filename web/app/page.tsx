@@ -49,6 +49,24 @@ function fmtDate(d: string) {
   }
 }
 
+// Función helper para convertir fecha YYYY-MM-DD a ISO string sin problemas de zona horaria
+function dateToISOString(dateString: string): string {
+  // dateString viene en formato "YYYY-MM-DD"
+  // Usamos UTC para evitar problemas de zona horaria
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toISOString();
+}
+
+// Función helper para convertir fecha ISO a formato YYYY-MM-DD sin problemas de zona horaria
+function isoToDateString(isoString: string): string {
+  // Parseamos la fecha ISO y usamos UTC para evitar problemas de zona horaria
+  const date = new Date(isoString);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function cardBorderByResult(result: number | null) {
   if (result === 1) return "#22c55e"; // win
   if (result === 0) return "#9ca3af"; // draw
@@ -385,7 +403,7 @@ export default function HomePage() {
       showToast("Guardando partido...", "info");
 
       await matchesApi.create({
-        date: new Date(date).toISOString(),
+        date: dateToISOString(date),
         opponent: opponent.trim(),
         format,
         goals: Number(goals),
@@ -418,11 +436,8 @@ export default function HomePage() {
       setEditLoading(true);
       const m = await matchesApi.get(id);
       
-      const d = new Date(m.date);
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      setEditDate(`${yyyy}-${mm}-${dd}`);
+      // Usar la función helper para convertir correctamente la fecha ISO a YYYY-MM-DD
+      setEditDate(isoToDateString(m.date));
 
       setEditOpponent(m.opponent ?? "");
       setEditFormat(m.format ?? "");
@@ -504,7 +519,7 @@ export default function HomePage() {
       setMsg("Guardando cambios...");
 
       const payload: CreateMatchRequest = {
-        date: new Date(editDate).toISOString(),
+        date: dateToISOString(editDate),
         opponent: editOpponent.trim(),
         format: Number(editFormat),
         goals: Number(editGoals),
@@ -1768,11 +1783,7 @@ export default function HomePage() {
                         // Resetear a la fecha original si intenta poner una fecha futura
                         const originalMatch = items.find(m => m.id === editId);
                         if (originalMatch) {
-                          const originalDate = new Date(originalMatch.date);
-                          const yyyy = originalDate.getFullYear();
-                          const mm = String(originalDate.getMonth() + 1).padStart(2, "0");
-                          const dd = String(originalDate.getDate()).padStart(2, "0");
-                          setEditDate(`${yyyy}-${mm}-${dd}`);
+                          setEditDate(isoToDateString(originalMatch.date));
                         } else {
                           setEditDate(getTodayDate());
                         }
