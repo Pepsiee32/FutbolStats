@@ -9,6 +9,11 @@ export type Match = {
   format: number | null;
   goals: number | null;
   assists: number | null;
+  // Marcador (opcional). Puede no existir en la tabla según tu schema.
+  goals_scored?: number | null; // goles de tu equipo
+  goals_conceded?: number | null; // goles del rival
+  goalsScored?: number | null; // compat (camelCase)
+  goalsConceded?: number | null; // compat (camelCase)
   result: number | null;     // 1 win, 0 draw, -1 loss
   is_mvp: boolean;
   isMvp?: boolean; // Compatibilidad con código existente
@@ -23,6 +28,11 @@ export type CreateMatchRequest = {
   format?: number | null;
   goals?: number | null;
   assists?: number | null;
+  // Marcador (opcional). Se enviará solo si la tabla soporta estas columnas.
+  goals_scored?: number | null;
+  goals_conceded?: number | null;
+  goalsScored?: number | null; // compat (camelCase)
+  goalsConceded?: number | null; // compat (camelCase)
   result: number | null;
   is_mvp: boolean;
   isMvp?: boolean; // Compatibilidad con código existente
@@ -30,6 +40,22 @@ export type CreateMatchRequest = {
 };
 
 export type UpdateMatchRequest = CreateMatchRequest;
+
+let cachedScoreColumnsSupported: boolean | null = null;
+
+async function scoreColumnsSupported(): Promise<boolean> {
+  if (cachedScoreColumnsSupported !== null) return cachedScoreColumnsSupported;
+
+  // Si las columnas no existen, PostgREST devuelve un error de "column ... does not exist".
+  // Si hay cualquier otro error (RLS, etc.), también fallback a "false" para no romper.
+  const { error } = await supabase
+    .from("matches")
+    .select("goals_scored, goals_conceded")
+    .limit(1);
+
+  cachedScoreColumnsSupported = !error;
+  return cachedScoreColumnsSupported;
+}
 
 export const matchesApi = {
   list: async (): Promise<Match[]> => {
@@ -46,6 +72,8 @@ export const matchesApi = {
     return (data || []).map(match => ({
       ...match,
       isMvp: match.is_mvp,
+      goalsScored: (match as any).goals_scored ?? (match as any).goalsScored ?? null,
+      goalsConceded: (match as any).goals_conceded ?? (match as any).goalsConceded ?? null,
     }));
   },
 
@@ -67,6 +95,8 @@ export const matchesApi = {
     return {
       ...data,
       isMvp: data.is_mvp,
+      goalsScored: (data as any).goals_scored ?? (data as any).goalsScored ?? null,
+      goalsConceded: (data as any).goals_conceded ?? (data as any).goalsConceded ?? null,
     };
   },
 
@@ -76,6 +106,24 @@ export const matchesApi = {
     if ('isMvp' in payload && !('is_mvp' in payload)) {
       payload.is_mvp = payload.isMvp;
       delete payload.isMvp;
+    }
+
+    // Marcador: mapear camelCase y/o eliminar si la tabla no tiene las columnas
+    const supportsScore = await scoreColumnsSupported();
+    if (!supportsScore) {
+      delete payload.goals_scored;
+      delete payload.goals_conceded;
+      delete payload.goalsScored;
+      delete payload.goalsConceded;
+    } else {
+      if ("goalsScored" in payload && !("goals_scored" in payload)) {
+        payload.goals_scored = payload.goalsScored;
+        delete payload.goalsScored;
+      }
+      if ("goalsConceded" in payload && !("goals_conceded" in payload)) {
+        payload.goals_conceded = payload.goalsConceded;
+        delete payload.goalsConceded;
+      }
     }
 
     // Obtener el usuario actual para asegurar que tenemos una sesión válida
@@ -105,6 +153,8 @@ export const matchesApi = {
     return {
       ...data,
       isMvp: data.is_mvp,
+      goalsScored: (data as any).goals_scored ?? (data as any).goalsScored ?? null,
+      goalsConceded: (data as any).goals_conceded ?? (data as any).goalsConceded ?? null,
     };
   },
 
@@ -114,6 +164,24 @@ export const matchesApi = {
     if ('isMvp' in payload && !('is_mvp' in payload)) {
       payload.is_mvp = payload.isMvp;
       delete payload.isMvp;
+    }
+
+    // Marcador: mapear camelCase y/o eliminar si la tabla no tiene las columnas
+    const supportsScore = await scoreColumnsSupported();
+    if (!supportsScore) {
+      delete payload.goals_scored;
+      delete payload.goals_conceded;
+      delete payload.goalsScored;
+      delete payload.goalsConceded;
+    } else {
+      if ("goalsScored" in payload && !("goals_scored" in payload)) {
+        payload.goals_scored = payload.goalsScored;
+        delete payload.goalsScored;
+      }
+      if ("goalsConceded" in payload && !("goals_conceded" in payload)) {
+        payload.goals_conceded = payload.goalsConceded;
+        delete payload.goalsConceded;
+      }
     }
 
     const { data, error } = await supabase
@@ -134,6 +202,8 @@ export const matchesApi = {
     return {
       ...data,
       isMvp: data.is_mvp,
+      goalsScored: (data as any).goals_scored ?? (data as any).goalsScored ?? null,
+      goalsConceded: (data as any).goals_conceded ?? (data as any).goalsConceded ?? null,
     };
   },
 

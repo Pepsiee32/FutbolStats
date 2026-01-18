@@ -177,12 +177,17 @@ export default function HomePage() {
     return selectedDate <= today;
   };
 
+  const clampNonNegativeInt = (n: number) => Math.max(0, Math.floor(Number.isFinite(n) ? n : 0));
+
   const [date, setDate] = useState(getTodayDate());
   const [opponent, setOpponent] = useState("");
   const [format, setFormat] = useState<number>(5);
-  const [result, setResult] = useState<number>(1); // 1/0/-1
-  const [goals, setGoals] = useState<number | "">("");
-  const [assists, setAssists] = useState<number | "">("");
+  // Marcador
+  const [goalsScored, setGoalsScored] = useState<number>(0);
+  const [goalsConceded, setGoalsConceded] = useState<number>(0);
+  // Rendimiento personal
+  const [goals, setGoals] = useState<number>(0);
+  const [assists, setAssists] = useState<number>(0);
   const [isMvp, setIsMvp] = useState(false);
   const [notes, setNotes] = useState("");
 
@@ -191,9 +196,10 @@ export default function HomePage() {
   const [editDate, setEditDate] = useState("");
   const [editOpponent, setEditOpponent] = useState("");
   const [editFormat, setEditFormat] = useState<number | "">("");
-  const [editGoals, setEditGoals] = useState<number | "">("");
-  const [editAssists, setEditAssists] = useState<number | "">("");
-  const [editResult, setEditResult] = useState<number | "">("");
+  const [editGoalsScored, setEditGoalsScored] = useState<number>(0);
+  const [editGoalsConceded, setEditGoalsConceded] = useState<number>(0);
+  const [editGoals, setEditGoals] = useState<number>(0);
+  const [editAssists, setEditAssists] = useState<number>(0);
   const [editIsMvp, setEditIsMvp] = useState(false);
   const [editNotes, setEditNotes] = useState("");
   const [editLoading, setEditLoading] = useState(false);
@@ -392,14 +398,21 @@ export default function HomePage() {
       showToast("El nombre del rival no puede exceder 50 caracteres. Tienes " + opponentLength + " caracteres.", "error");
       return;
     }
-    
-    if (goals === "" || goals === null || goals === undefined) {
-      showToast("Los goles son requeridos", "error");
+
+    // Validaciones numéricas básicas (por seguridad)
+    const safeGoals = clampNonNegativeInt(goals);
+    const safeAssists = clampNonNegativeInt(assists);
+    const safeGoalsScored = clampNonNegativeInt(goalsScored);
+    const safeGoalsConceded = clampNonNegativeInt(goalsConceded);
+    const derivedResult =
+      safeGoalsScored > safeGoalsConceded ? 1 : safeGoalsScored < safeGoalsConceded ? -1 : 0;
+
+    if (safeGoals > 50 || safeAssists > 50) {
+      showToast("Goles/Asistencias parecen demasiado altos (máx 50).", "error");
       return;
     }
-    
-    if (assists === "" || assists === null || assists === undefined) {
-      showToast("Las asistencias son requeridas", "error");
+    if (safeGoalsScored > 99 || safeGoalsConceded > 99) {
+      showToast("El marcador parece demasiado alto (máx 99).", "error");
       return;
     }
 
@@ -417,9 +430,11 @@ export default function HomePage() {
         date: dateToISOString(date),
         opponent: opponent.trim(),
         format,
-        goals: Number(goals),
-        assists: Number(assists),
-        result,
+        goalsScored: safeGoalsScored,
+        goalsConceded: safeGoalsConceded,
+        goals: safeGoals,
+        assists: safeAssists,
+        result: derivedResult,
         is_mvp: isMvp,
         notes: notes.trim() ? notes.trim() : null,
       });
@@ -428,9 +443,10 @@ export default function HomePage() {
       setDate(getTodayDate());
       setOpponent("");
       setFormat(5);
-      setResult(1);
-      setGoals("");
-      setAssists("");
+      setGoalsScored(0);
+      setGoalsConceded(0);
+      setGoals(0);
+      setAssists(0);
       setIsMvp(false);
       setNotes("");
 
@@ -452,9 +468,10 @@ export default function HomePage() {
 
       setEditOpponent(m.opponent ?? "");
       setEditFormat(m.format ?? "");
-      setEditGoals(m.goals ?? "");
-      setEditAssists(m.assists ?? "");
-      setEditResult(m.result ?? "");
+      setEditGoalsScored(clampNonNegativeInt((m as any).goalsScored ?? (m as any).goals_scored ?? 0));
+      setEditGoalsConceded(clampNonNegativeInt((m as any).goalsConceded ?? (m as any).goals_conceded ?? 0));
+      setEditGoals(clampNonNegativeInt(m.goals ?? 0));
+      setEditAssists(clampNonNegativeInt(m.assists ?? 0));
       setEditIsMvp(!!m.isMvp);
       setEditNotes(m.notes ?? "");
       setEditId(id);
@@ -471,9 +488,10 @@ export default function HomePage() {
     setEditDate("");
     setEditOpponent("");
     setEditFormat("");
-    setEditGoals("");
-    setEditAssists("");
-    setEditResult("");
+    setEditGoalsScored(0);
+    setEditGoalsConceded(0);
+    setEditGoals(0);
+    setEditAssists(0);
     setEditIsMvp(false);
     setEditNotes("");
   }
@@ -510,19 +528,25 @@ export default function HomePage() {
       showToast("El formato es requerido", "error");
       return;
     }
-    
-    if (editResult === "" || editResult === null || editResult === undefined) {
-      showToast("El resultado es requerido", "error");
+
+    // Validaciones numéricas básicas (por seguridad)
+    const safeEditGoals = clampNonNegativeInt(editGoals);
+    const safeEditAssists = clampNonNegativeInt(editAssists);
+    const safeEditGoalsScored = clampNonNegativeInt(editGoalsScored);
+    const safeEditGoalsConceded = clampNonNegativeInt(editGoalsConceded);
+    const derivedEditResult =
+      safeEditGoalsScored > safeEditGoalsConceded
+        ? 1
+        : safeEditGoalsScored < safeEditGoalsConceded
+          ? -1
+          : 0;
+
+    if (safeEditGoals > 50 || safeEditAssists > 50) {
+      showToast("Goles/Asistencias parecen demasiado altos (máx 50).", "error");
       return;
     }
-    
-    if (editGoals === "" || editGoals === null || editGoals === undefined) {
-      showToast("Los goles son requeridos", "error");
-      return;
-    }
-    
-    if (editAssists === "" || editAssists === null || editAssists === undefined) {
-      showToast("Las asistencias son requeridas", "error");
+    if (safeEditGoalsScored > 99 || safeEditGoalsConceded > 99) {
+      showToast("El marcador parece demasiado alto (máx 99).", "error");
       return;
     }
 
@@ -540,9 +564,11 @@ export default function HomePage() {
         date: dateToISOString(editDate),
         opponent: editOpponent.trim(),
         format: Number(editFormat),
-        goals: Number(editGoals),
-        assists: Number(editAssists),
-        result: Number(editResult),
+        goalsScored: safeEditGoalsScored,
+        goalsConceded: safeEditGoalsConceded,
+        goals: safeEditGoals,
+        assists: safeEditAssists,
+        result: derivedEditResult,
         is_mvp: editIsMvp,
         notes: editNotes.trim() ? editNotes.trim() : null,
       };
@@ -559,15 +585,15 @@ export default function HomePage() {
 
   // Chart data helpers
   const radarChartData = useMemo(() => {
-    // Normalización de GOLES: (Promedio / 3) * 100, máximo 100 si >= 3
-    const goalsNormalized = statsData.avgGoals >= 3 
+    // Normalización de GOLES: (Promedio / 2) * 100, máximo 100 si >= 2
+    const goalsNormalized = statsData.avgGoals >= 2
       ? 100 
-      : (statsData.avgGoals / 3) * 100;
+      : (statsData.avgGoals / 2) * 100;
 
-    // Normalización de ASIST: (Promedio / 3) * 100, máximo 100 si >= 3
-    const assistsNormalized = statsData.avgAssists >= 3 
+    // Normalización de ASIST: (Promedio / 2) * 100, máximo 100 si >= 2
+    const assistsNormalized = statsData.avgAssists >= 2
       ? 100 
-      : (statsData.avgAssists / 3) * 100;
+      : (statsData.avgAssists / 2) * 100;
 
     // WINS: Ya es un porcentaje (0-100)
     const winsNormalized = statsData.winRate;
@@ -1000,70 +1026,168 @@ export default function HomePage() {
                     <option value={8}>Fútbol 8</option>
                     <option value={11}>Fútbol 11</option>
                   </select>
-
-                  <select
-                    value={result}
-                    onChange={(e) => setResult(Number(e.target.value))}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-gray-200 outline-none"
-                    required
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setIsMvp(!isMvp);
+                      e.currentTarget.blur();
+                    }}
+                    className={`flex items-center justify-center bg-white/5 border rounded-xl p-3 gap-2 transition-colors ${
+                      isMvp ? "border-yellow-400" : "border-white/10"
+                    } outline-none`}
+                    title="Opcional"
                   >
-                    <option value={1}>Ganado</option>
-                    <option value={0}>Empatado</option>
-                    <option value={-1}>Perdido</option>
-                  </select>
+                    <i
+                      className={`fas fa-star ${isMvp ? "text-yellow-400" : "text-gray-500"}`}
+                      style={{ fontSize: 18 }}
+                    ></i>
+                    <span className="text-[10px] font-black text-gray-400 uppercase">
+                      ¿Fuiste el MVP?
+                    </span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="Goles"
-                    value={goals}
-                    onChange={(e) => setGoals(e.target.value === "" ? "" : Number(e.target.value))}
-                    onFocus={() => setIsInputFocused(true)}
-                    onBlur={() => setIsInputFocused(false)}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
-                    style={{ fontSize: '16px' }}
-                    required
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="Asistencias"
-                    value={assists}
-                    onChange={(e) => setAssists(e.target.value === "" ? "" : Number(e.target.value))}
-                    onFocus={() => setIsInputFocused(true)}
-                    onBlur={() => setIsInputFocused(false)}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
-                    style={{ fontSize: '16px' }}
-                    required
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    setIsMvp(!isMvp);
-                    e.currentTarget.blur();
+                {/* Marcador (Match Score) */}
+                <div
+                  className="p-4 rounded-2xl"
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.08)",
                   }}
-                  className={`w-full flex items-center justify-center bg-white/5 border rounded-xl p-3 gap-2 transition-colors ${
-                    isMvp 
-                      ? "border-yellow-400" 
-                      : "border-white/10"
-                  } outline-none`}
                 >
-                  <i
-                    className={`fas fa-star ${isMvp ? "text-yellow-400" : "text-gray-500"}`}
-                    style={{ fontSize: 18 }}
-                  ></i>
-                  <span className="text-[10px] font-black text-gray-400 uppercase">
-                    ¿Fuiste el MVP?
-                  </span>
-                </button>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-center mb-3 text-gray-400">
+                    Marcador
+                  </p>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="text-center">
+                      <p className="text-[9px] text-gray-500 font-bold uppercase mb-2">Tu equipo</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setGoalsScored((v) => Math.max(0, v - 1));
+                            e.currentTarget.blur();
+                          }}
+                          className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                        >
+                          –
+                        </button>
+                        <span className="text-3xl font-black w-10 text-center" style={{ color: "#22c55e" }}>
+                          {goalsScored}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setGoalsScored((v) => Math.min(99, v + 1));
+                            e.currentTarget.blur();
+                          }}
+                          className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+
+                    <span className=" relative top-[10px] text-2xl font-black text-gray-500 leading-none">-</span>
+
+                    <div className="text-center">
+                      <p className="text-[9px] text-gray-500 font-bold uppercase mb-2">Rival</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setGoalsConceded((v) => Math.max(0, v - 1));
+                            e.currentTarget.blur();
+                          }}
+                          className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                        >
+                          –
+                        </button>
+                        <span className="text-3xl font-black w-10 text-center">{goalsConceded}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setGoalsConceded((v) => Math.min(99, v + 1));
+                            e.currentTarget.blur();
+                          }}
+                          className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rendimiento personal (Goles / Asistencias con +/-) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                    <p className="text-[10px] font-black uppercase text-gray-400 mb-2 text-center">
+                      Goles
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          setGoals((v) => Math.max(0, v - 1));
+                          e.currentTarget.blur();
+                        }}
+                        className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        –
+                      </button>
+                      <span className="text-2xl font-black w-10 text-center" style={{ color: "#22c55e" }}>
+                        {goals}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          setGoals((v) => Math.min(50, v + 1));
+                          e.currentTarget.blur();
+                        }}
+                        className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                    <p className="text-[10px] font-black uppercase text-gray-400 mb-2 text-center">
+                      Asistencias
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          setAssists((v) => Math.max(0, v - 1));
+                          e.currentTarget.blur();
+                        }}
+                        className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        –
+                      </button>
+                      <span className="text-2xl font-black w-10 text-center" style={{ color: "#3b82f6" }}>
+                        {assists}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          setAssists((v) => Math.min(50, v + 1));
+                          e.currentTarget.blur();
+                        }}
+                        className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
                 <div>
                   <textarea
-                    placeholder='ej: "gol de chilena" o "partido chivo"'
+                    placeholder='Opcional: ¿Cómo jugaste? ¿Algo destacado?'
                     value={notes}
                     maxLength={100}
                     onChange={(e) => {
@@ -1205,7 +1329,7 @@ export default function HomePage() {
                   <div className="mt-4 pt-4 border-t border-white/10">
                     <p className="text-[9px] text-gray-400 leading-relaxed space-y-2">
                       <span className="block">
-                        <strong className="text-gray-300">Goles y Asistencias:</strong> Calculamos tu promedio por partido. El 100% se alcanza al promediar 3 o más en cada categoría.
+                        <strong className="text-gray-300">Goles y Asistencias:</strong> Calculamos tu promedio por partido. El 100% se alcanza al promediar 2 o más en cada categoría.
                       </span>
                       <span className="block">
                         <strong className="text-gray-300">Victorias (Wins):</strong> Es el porcentaje de éxito de tu equipo en todos los partidos que has registrado.
@@ -1305,9 +1429,50 @@ export default function HomePage() {
         {/* LOGROS */}
         {tab === "logros" && (
           <div className="space-y-4">
-            <h2 className="text-center font-black italic text-xl mb-6 uppercase">
-              Vitrina de Trofeos
-            </h2>
+            {(() => {
+              const list = Object.values(achievements);
+              const total = list.length;
+              const unlocked = list.filter((a: any) => a?.unlocked).length;
+              const pct = total > 0 ? Math.round((unlocked / total) * 100) : 0;
+
+              return (
+                <>
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-black italic text-xl uppercase">Achievements</h2>
+                    <div className="flex items-center gap-2 text-sm font-black">
+                      <span style={{ color: "#22c55e" }}>🏆</span>
+                      <span className="text-white">{unlocked}</span>
+                      <span style={{ color: "rgba(156, 163, 175, 0.6)" }}>/ {total}</span>
+                    </div>
+                  </div>
+
+                  <div
+                    className="p-5 rounded-3xl"
+                    style={{
+                      background: "rgba(10, 25, 10, 0.9)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span style={{ color: "rgba(156, 163, 175, 0.6)" }} className="font-bold">
+                        Progreso
+                      </span>
+                      <span className="text-white font-black">{pct}%</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${(unlocked / Math.max(1, total)) * 100}%`,
+                          background: "#22c55e",
+                          transition: "width 0.5s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
             <div className="grid grid-cols-2 gap-4">
               {/* Messi 91 */}
               <div
@@ -1614,7 +1779,13 @@ export default function HomePage() {
                 </p>
               </div>
             ) : (
-              filteredHistorialItems.map((m) => (
+              filteredHistorialItems.map((m) => {
+                const gs = (m as any).goalsScored ?? (m as any).goals_scored;
+                const gc = (m as any).goalsConceded ?? (m as any).goals_conceded;
+                const hasScore = typeof gs === "number" && typeof gc === "number";
+                const scoreText = hasScore ? `${gs}-${gc}` : "—";
+
+                return (
                 <div
                   key={m.id}
                   className="p-5 rounded-3xl"
@@ -1658,7 +1829,7 @@ export default function HomePage() {
                         border: `1px solid ${cardBorderByResult(m.result)}40`,
                       }}
                     >
-                      {resultLabel(m.result)}
+                      {hasScore ? scoreText : resultLabel(m.result)}
                     </div>
                   </div>
 
@@ -1744,7 +1915,8 @@ export default function HomePage() {
                     </button>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
@@ -1909,71 +2081,167 @@ export default function HomePage() {
                     <option value={8}>Fútbol 8</option>
                     <option value={11}>Fútbol 11</option>
                   </select>
-
-                  <select
-                    value={editResult}
-                    onChange={(e) => setEditResult(e.target.value === "" ? "" : Number(e.target.value))}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-gray-200 outline-none"
-                    required
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setEditIsMvp(!editIsMvp);
+                      e.currentTarget.blur();
+                    }}
+                    className={`flex items-center justify-center bg-white/5 border rounded-xl p-3 gap-2 transition-colors ${
+                      editIsMvp ? "border-yellow-400" : "border-white/10"
+                    } outline-none`}
+                    title="Opcional"
                   >
-                    <option value="">Seleccionar resultado</option>
-                    <option value={1}>Ganado</option>
-                    <option value={0}>Empatado</option>
-                    <option value={-1}>Perdido</option>
-                  </select>
+                    <i
+                      className={`fas fa-star ${editIsMvp ? "text-yellow-400" : "text-gray-500"}`}
+                      style={{ fontSize: 18 }}
+                    ></i>
+                    <span className="text-[10px] font-black text-gray-400 uppercase">
+                      ¿Fuiste el MVP?
+                    </span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="Goles"
-                    value={editGoals}
-                    onChange={(e) => setEditGoals(e.target.value === "" ? "" : Number(e.target.value))}
-                    onFocus={() => setIsInputFocused(true)}
-                    onBlur={() => setIsInputFocused(false)}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
-                    style={{ fontSize: '16px' }}
-                    required
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="Asistencias"
-                    value={editAssists}
-                    onChange={(e) => setEditAssists(e.target.value === "" ? "" : Number(e.target.value))}
-                    onFocus={() => setIsInputFocused(true)}
-                    onBlur={() => setIsInputFocused(false)}
-                    className="bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none focus:border-green-500"
-                    style={{ fontSize: '16px' }}
-                    required
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    setEditIsMvp(!editIsMvp);
-                    e.currentTarget.blur();
+                {/* Marcador (Match Score) */}
+                <div
+                  className="p-4 rounded-2xl"
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.08)",
                   }}
-                  className={`w-full flex items-center justify-center bg-white/5 border rounded-xl p-3 gap-2 transition-colors ${
-                    editIsMvp 
-                      ? "border-yellow-400" 
-                      : "border-white/10"
-                  } outline-none`}
                 >
-                  <i
-                    className={`fas fa-star ${editIsMvp ? "text-yellow-400" : "text-gray-500"}`}
-                    style={{ fontSize: 18 }}
-                  ></i>
-                  <span className="text-[10px] font-black text-gray-400 uppercase">
-                    ¿Fuiste el MVP?
-                  </span>
-                </button>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-center mb-3 text-gray-400">
+                    Marcador
+                  </p>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="text-center">
+                      <p className="text-[9px] text-gray-500 font-bold uppercase mb-2">Tu equipo</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setEditGoalsScored((v) => Math.max(0, v - 1));
+                            e.currentTarget.blur();
+                          }}
+                          className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                        >
+                          –
+                        </button>
+                        <span className="text-3xl font-black w-10 text-center" style={{ color: "#22c55e" }}>
+                          {editGoalsScored}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setEditGoalsScored((v) => Math.min(99, v + 1));
+                            e.currentTarget.blur();
+                          }}
+                          className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <span className="relative top-[10px] text-2xl font-black text-gray-500 leading-none">-</span>
+
+                    <div className="text-center">
+                      <p className="text-[9px] text-gray-500 font-bold uppercase mb-2">Rival</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setEditGoalsConceded((v) => Math.max(0, v - 1));
+                            e.currentTarget.blur();
+                          }}
+                          className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                        >
+                          –
+                        </button>
+                        <span className="text-3xl font-black w-10 text-center">{editGoalsConceded}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            setEditGoalsConceded((v) => Math.min(99, v + 1));
+                            e.currentTarget.blur();
+                          }}
+                          className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rendimiento personal (Goles / Asistencias con +/-) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                    <p className="text-[10px] font-black uppercase text-gray-400 mb-2 text-center">
+                      Goles
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          setEditGoals((v) => Math.max(0, v - 1));
+                          e.currentTarget.blur();
+                        }}
+                        className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        –
+                      </button>
+                      <span className="text-2xl font-black w-10 text-center" style={{ color: "#22c55e" }}>
+                        {editGoals}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          setEditGoals((v) => Math.min(50, v + 1));
+                          e.currentTarget.blur();
+                        }}
+                        className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                    <p className="text-[10px] font-black uppercase text-gray-400 mb-2 text-center">
+                      Asistencias
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          setEditAssists((v) => Math.max(0, v - 1));
+                          e.currentTarget.blur();
+                        }}
+                        className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        –
+                      </button>
+                      <span className="text-2xl font-black w-10 text-center" style={{ color: "#3b82f6" }}>
+                        {editAssists}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          setEditAssists((v) => Math.min(50, v + 1));
+                          e.currentTarget.blur();
+                        }}
+                        className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl font-black text-base sm:text-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
                 <div>
                   <textarea
-                    placeholder='ej: "gol de chilena" o "partido chivo"'
+                    placeholder='Opcional: ¿Cómo jugaste? ¿Algo destacado?'
                     value={editNotes}
                     maxLength={100}
                     onChange={(e) => {
