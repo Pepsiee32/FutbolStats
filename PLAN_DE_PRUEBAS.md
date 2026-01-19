@@ -1,4 +1,8 @@
-# Plan de Pruebas - FutbolStats
+Pruebas:
+cd web
+npm run dev
+
+ Plan de Pruebas - FutbolStats
 
 ## 1. Pruebas de Autenticación
 

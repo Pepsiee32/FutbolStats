@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./providers/AuthProvider";
 import { matchesApi, type Match, resultLabel, type CreateMatchRequest } from "@/services/matches";
+import { feedbackApi, type FeedbackKind } from "@/services/feedback";
 import { translateError } from "@/utils/errorTranslations";
 import {
   Chart as ChartJS,
@@ -36,6 +37,7 @@ ChartJS.register(
 );
 
 type Tab = "inicio" | "stats" | "logros" | "historial";
+type HistorialDateMode = "all" | "week" | "month" | "year";
 
 function fmtDate(d: string) {
   try {
@@ -89,6 +91,10 @@ export default function HomePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>("ui");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackSending, setFeedbackSending] = useState(false);
   
   // Handler para logout que funciona en Safari
   const handleLogout = async (e: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>) => {
@@ -123,6 +129,7 @@ export default function HomePage() {
   // Historial filter
   const [historialFilter, setHistorialFilter] = useState<number | "all">("all");
   const [historialSearch, setHistorialSearch] = useState<string>("");
+  const [historialDateMode, setHistorialDateMode] = useState<HistorialDateMode>("all");
   
   // Filtered historial items
   const filteredHistorialItems = useMemo(() => {
@@ -150,9 +157,58 @@ export default function HomePage() {
         });
       });
     }
+
+    // Filtrar por fecha (UTC para evitar problemas de zona horaria)
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const now = new Date();
+    const todayUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const todayKey = isoToDateString(todayUtcMidnight.toISOString());
+    const thisMonthKey = todayKey.slice(0, 7); // YYYY-MM
+    const thisYearKey = todayKey.slice(0, 4); // YYYY
+    const matchKeyOf = (m: Match) => isoToDateString(m.date);
+
+    const applyLastDays = (daysBackInclusive: number) => {
+      const start = new Date(todayUtcMidnight.getTime() - daysBackInclusive * msPerDay);
+      const startKey = isoToDateString(start.toISOString());
+      filtered = filtered.filter((m) => {
+        const k = matchKeyOf(m);
+        return k >= startKey && k <= todayKey;
+      });
+    };
+
+    if (historialDateMode === "week") {
+      applyLastDays(6); // 7 días: hoy + 6 días previos (inclusive)
+    } else if (historialDateMode === "month") {
+      // Mes calendario actual (ej: si estamos en enero, solo enero)
+      filtered = filtered.filter((m) => matchKeyOf(m).slice(0, 7) === thisMonthKey);
+    } else if (historialDateMode === "year") {
+      // Año calendario actual (ej: si estamos en 2026, solo 2026)
+      filtered = filtered.filter((m) => matchKeyOf(m).slice(0, 4) === thisYearKey);
+    }
+
+    // Ordenar más recientes primero
+    filtered = [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     return filtered;
-  }, [items, historialFilter, historialSearch]);
+  }, [items, historialFilter, historialSearch, historialDateMode]);
+
+  const historialTimelineGroups = useMemo(() => {
+    const byDay = new Map<string, Match[]>();
+    for (const m of filteredHistorialItems) {
+      const key = isoToDateString(m.date) || "sin-fecha";
+      const arr = byDay.get(key);
+      if (arr) arr.push(m);
+      else byDay.set(key, [m]);
+    }
+
+    const keys = [...byDay.keys()].sort((a, b) => (a < b ? 1 : -1));
+    return keys.map((dateKey) => {
+      const matches = [...(byDay.get(dateKey) ?? [])].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      return { dateKey, matches };
+    });
+  }, [filteredHistorialItems]);
 
   // Form - Initialize date with today's date
   const getTodayDate = () => {
@@ -667,6 +723,23 @@ export default function HomePage() {
     };
   }, [filteredItems]);
 
+  const assistsLineChartData = useMemo(() => {
+    // Invertir el orden: más antiguos primero, más reciente al final
+    const reversedItems = [...filteredItems].reverse();
+    return {
+      labels: reversedItems.map((_, i) => `P${i + 1}`),
+      datasets: [
+        {
+          data: reversedItems.map((m) => m.assists ?? 0),
+          borderColor: '#3b82f6',
+          fill: true,
+          backgroundColor: 'rgba(59,130,246,0.12)',
+          tension: 0.4,
+        },
+      ],
+    };
+  }, [filteredItems]);
+
   const barChartData = useMemo(() => {
     // Invertir el orden: más antiguos primero, más reciente al final
     const reversedItems = [...filteredItems].reverse();
@@ -731,6 +804,65 @@ export default function HomePage() {
   const initials =
     me.email?.split("@")[0]?.substring(0, 2)?.toUpperCase() ?? "??";
 
+  const mainTabs = (
+    <div className="overflow-x-auto no-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
+      {/* Asegura centrado cuando sobra ancho (especial iPhone) */}
+      <div className="min-w-full sm:min-w-0 flex justify-center">
+        <div
+          className="w-max flex items-center gap-1 rounded-full p-1"
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }}
+        >
+        <button
+          onClick={() => setTab("inicio")}
+          className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors ${
+            tab === "inicio" ? "bg-green-500 text-black" : "text-gray-300 hover:bg-white/10"
+          }`}
+          type="button"
+        >
+          <i className="fas fa-home text-[11px] sm:text-[12px]"></i>
+          Inicio
+        </button>
+
+        <button
+          onClick={() => setTab("stats")}
+          className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors ${
+            tab === "stats" ? "bg-green-500 text-black" : "text-gray-300 hover:bg-white/10"
+          }`}
+          type="button"
+        >
+          <i className="fas fa-chart-line text-[11px] sm:text-[12px]"></i>
+          Stats
+        </button>
+
+        <button
+          onClick={() => setTab("logros")}
+          className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors ${
+            tab === "logros" ? "bg-green-500 text-black" : "text-gray-300 hover:bg-white/10"
+          }`}
+          type="button"
+        >
+          <i className="fas fa-trophy text-[11px] sm:text-[12px]"></i>
+          Logros
+        </button>
+
+        <button
+          onClick={() => setTab("historial")}
+          className={`px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors ${
+            tab === "historial" ? "bg-green-500 text-black" : "text-gray-300 hover:bg-white/10"
+          }`}
+          type="button"
+        >
+          <i className="fas fa-history text-[11px] sm:text-[12px]"></i>
+          Historial
+        </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div
       className="min-h-screen text-white font-sans"
@@ -746,11 +878,16 @@ export default function HomePage() {
     >
       {/* Top nav */}
       <nav className="bg-black/60 border-b border-white/10 p-4 sticky top-0 z-50 backdrop-blur-md">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-black italic uppercase tracking-tighter">
-            Fut<span style={{ color: "#22c55e" }}>Stats</span>
-          </h1>
-          <div className="flex items-center gap-3 relative">
+        <div className="container mx-auto">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-black italic uppercase tracking-tighter shrink-0">
+              Fut<span style={{ color: "#22c55e" }}>Stats</span>
+            </h1>
+
+            {/* Tabs inline en desktop */}
+            <div className="hidden sm:block flex-1">{mainTabs}</div>
+
+            <div className="flex items-center gap-3 relative shrink-0 ml-auto">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center font-bold text-black text-xs border border-white/20 hover:bg-green-400 transition-colors cursor-pointer"
@@ -833,9 +970,16 @@ export default function HomePage() {
             )}
           </div>
         </div>
+
+          {/* Tabs abajo en mobile (ocultar con teclado abierto) */}
+          {!isInputFocused && <div className="sm:hidden mt-3">{mainTabs}</div>}
+        </div>
       </nav>
 
-      <main className="container mx-auto p-4 max-w-xl" style={{ paddingBottom: 120 }}>
+      <main
+        className="container mx-auto p-4 max-w-xl"
+        style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}
+      >
         {/* INICIO */}
         {tab === "inicio" && (
           <>
@@ -1243,6 +1387,107 @@ export default function HomePage() {
 
               </form>
             </div>
+
+            {/* Enviar recomendaciones (Inicio) */}
+            <div
+              className="p-5 rounded-3xl mb-8"
+              style={{
+                background: "rgba(10, 25, 10, 0.75)",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <button
+                type="button"
+                className="w-full flex items-center justify-between gap-3"
+                onClick={() => setFeedbackOpen((v) => !v)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base" aria-hidden="true">📋</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-300">Sugerencias</span>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  {feedbackOpen ? "Ocultar" : "Mostrar"}
+                </span>
+              </button>
+
+              {feedbackOpen && (
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+                  <p className="text-[11px] text-gray-300 leading-relaxed">
+                   Ayudanos a mejorar. Mandanos tu <strong className="text-gray-200">idea</strong> para nuevas funciones, estadísticas o reportá un error.  
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block text-[10px] font-black uppercase text-gray-400">
+                      Tipo
+                      <select
+                        value={feedbackKind}
+                        onChange={(e) => setFeedbackKind(e.target.value as FeedbackKind)}
+                        className="mt-2 w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-gray-200 outline-none"
+                        onFocus={() => setIsInputFocused(true)}
+                        onBlur={() => setIsInputFocused(false)}
+                      >
+                        <option value="ui">Error de Interfaz</option>
+                        <option value="stats">Nuevas Estadísticas</option>
+                        <option value="viz">Gráficos y Visualización</option>
+                        <option value="achievement">Sugerencia de Logro</option>
+                      </select>
+                    </label>
+                    <div className="hidden sm:block" />
+                  </div>
+
+                  <div>
+                    <textarea
+                      value={feedbackMessage}
+                      onChange={(e) => setFeedbackMessage(limitChars(e.target.value, 500))}
+                      placeholder="Ej: Falta una sección..."
+                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-base outline-none resize-none focus:border-green-500 placeholder:text-gray-500"
+                      style={{ minHeight: 110, maxHeight: 140, fontSize: "16px" }}
+                      onFocus={() => setIsInputFocused(true)}
+                      onBlur={() => setIsInputFocused(false)}
+                    />
+                    <p
+                      className="text-[9px] mt-1 text-right font-bold"
+                      style={{
+                        color:
+                          countChars(feedbackMessage) >= 500
+                            ? "#ef4444"
+                            : countChars(feedbackMessage) >= 450
+                              ? "#fbbf24"
+                              : "#6b7280",
+                        transition: "color 0.2s",
+                      }}
+                    >
+                      {countChars(feedbackMessage)} / 500
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={feedbackSending || !feedbackMessage.trim()}
+                    onClick={async () => {
+                      try {
+                        setFeedbackSending(true);
+                        await feedbackApi.create({
+                          kind: feedbackKind,
+                          message: feedbackMessage,
+                          page: "inicio",
+                        });
+                        setFeedbackMessage("");
+                        showToast("¡Gracias! Recomendación enviada.", "success");
+                      } catch (e: any) {
+                        showToast(translateError(e?.message ?? "No se pudo enviar la recomendación"), "error");
+                      } finally {
+                        setFeedbackSending(false);
+                      }
+                    }}
+                    className="w-full text-black font-black py-3 rounded-xl uppercase text-xs tracking-widest disabled:opacity-50"
+                    style={{ background: "#22c55e" }}
+                  >
+                    {feedbackSending ? "Enviando..." : "Enviar recomendación"}
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -1380,6 +1625,22 @@ export default function HomePage() {
                     <Line data={lineChartData} options={chartOptions} />
                   </div>
                 </div>
+
+                <div
+                  className="p-6 rounded-3xl"
+                  style={{
+                    background: "rgba(10, 25, 10, 0.9)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                >
+                  <h4 className="text-[10px] font-black uppercase mb-4 text-gray-500 text-center">
+                    Asistencias por Partido
+                  </h4>
+                  <div style={{ height: 200, width: "100%" }}>
+                    <Line data={assistsLineChartData} options={chartOptions} />
+                  </div>
+                </div>
+
                 <div
                   className="p-6 rounded-3xl"
                   style={{
@@ -1747,6 +2008,46 @@ export default function HomePage() {
               ))}
             </div>
 
+            {/* Date filters */}
+            <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar mb-4">
+              <button
+                onClick={() => setHistorialDateMode("all")}
+                className={`px-4 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  historialDateMode === "all" ? "bg-green-500 text-black" : "bg-white/10 text-white"
+                }`}
+                type="button"
+              >
+                Todas
+              </button>
+              <button
+                onClick={() => setHistorialDateMode("week")}
+                className={`px-4 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  historialDateMode === "week" ? "bg-green-500 text-black" : "bg-white/10 text-white"
+                }`}
+                type="button"
+              >
+                Semana
+              </button>
+              <button
+                onClick={() => setHistorialDateMode("month")}
+                className={`px-4 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  historialDateMode === "month" ? "bg-green-500 text-black" : "bg-white/10 text-white"
+                }`}
+                type="button"
+              >
+                Mes
+              </button>
+              <button
+                onClick={() => setHistorialDateMode("year")}
+                className={`px-4 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  historialDateMode === "year" ? "bg-green-500 text-black" : "bg-white/10 text-white"
+                }`}
+                type="button"
+              >
+                Año
+              </button>
+            </div>
+
             {/* Search input */}
             <div className="mb-4">
               <input
@@ -1761,8 +2062,8 @@ export default function HomePage() {
               />
             </div>
 
-            {/* Filtered items */}
-            {filteredHistorialItems.length === 0 ? (
+            {/* Timeline */}
+            {historialTimelineGroups.length === 0 ? (
               <div
                 className="p-6 rounded-2xl text-center"
                 style={{
@@ -1771,202 +2072,188 @@ export default function HomePage() {
                 }}
               >
                 <p className="text-sm text-gray-400">
-                  {historialSearch.trim() 
-                    ? `No se encontraron partidos que coincidan con "${historialSearch}"${historialFilter !== "all" ? ` en Fútbol ${historialFilter}` : ""}.`
-                    : historialFilter === "all" 
-                      ? "Todavía no hay partidos." 
-                      : `No hay partidos de Fútbol ${historialFilter}.`}
+                  {historialSearch.trim()
+                    ? `No se encontraron partidos que coincidan con "${historialSearch}"${
+                        historialFilter !== "all" ? ` en Fútbol ${historialFilter}` : ""
+                      }.`
+                    : historialDateMode !== "all"
+                      ? "No hay partidos en ese período."
+                      : historialFilter === "all"
+                        ? "Todavía no hay partidos."
+                        : `No hay partidos de Fútbol ${historialFilter}.`}
                 </p>
               </div>
             ) : (
-              filteredHistorialItems.map((m) => {
-                const gs = (m as any).goalsScored ?? (m as any).goals_scored;
-                const gc = (m as any).goalsConceded ?? (m as any).goals_conceded;
-                const hasScore = typeof gs === "number" && typeof gc === "number";
-                const scoreText = hasScore ? `${gs}-${gc}` : "—";
-
-                return (
+              <div className="relative">
                 <div
-                  key={m.id}
-                  className="p-5 rounded-3xl"
-                  style={{
-                    background: "rgba(10, 25, 10, 0.9)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderLeft: `5px solid ${cardBorderByResult(m.result)}`,
-                  }}
-                >
-                  {/* Header: Rival y MVP */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 
-                          className="font-black text-base italic uppercase"
-                          style={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            maxWidth: '100%'
-                          }}
-                          title={m.opponent ?? "Sin rival"}
-                        >
-                          {m.opponent ?? "Sin rival"}
-                        </h3>
-                        {m.isMvp && (
-                          <span className="text-lg" style={{ color: "#fbbf24" }} title="MVP">
-                            ⭐
-                          </span>
-                        )}
+                  className="absolute left-3 top-0 bottom-0 w-px"
+                  style={{ background: "rgba(255,255,255,0.12)" }}
+                />
+                <div className="space-y-6">
+                  {historialTimelineGroups.map((g) => (
+                    <div key={g.dateKey} className="relative pl-8">
+                      <div
+                        className="absolute left-[10px] top-[3px] w-3 h-3 rounded-full"
+                        style={{
+                          background: "rgba(34, 197, 94, 0.95)",
+                          border: "2px solid rgba(0,0,0,0.65)",
+                          boxShadow: "0 0 12px rgba(34, 197, 94, 0.25)",
+                        }}
+                      />
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">
+                          {g.dateKey === "sin-fecha" ? "Sin fecha" : fmtDate(dateToISOString(g.dateKey))}
+                        </p>
+                        <p className="text-[10px] text-gray-500 font-bold">
+                          {g.matches.length} {g.matches.length === 1 ? "partido" : "partidos"}
+                        </p>
                       </div>
-                      <p className="text-[10px] font-bold" style={{ color: "rgba(156, 163, 175, 0.6)" }}>
-                        {fmtDate(m.date)}
-                      </p>
-                    </div>
-                    <div
-                      className="px-3 py-1 rounded-full text-[10px] font-black uppercase"
-                      style={{
-                        background: cardBorderByResult(m.result) + "20",
-                        color: cardBorderByResult(m.result),
-                        border: `1px solid ${cardBorderByResult(m.result)}40`,
-                      }}
-                    >
-                      {hasScore ? scoreText : resultLabel(m.result)}
-                    </div>
-                  </div>
 
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-4 gap-3 mb-3">
-                    <div className="text-center">
-                      <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Formato</p>
-                      <p className="text-sm font-black">{m.format ? `F${m.format}` : "—"}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Goles</p>
-                      <p className="text-sm font-black" style={{ color: "#22c55e" }}>
-                        ⚽ {m.goals ?? 0}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Asistencias</p>
-                      <p className="text-sm font-black" style={{ color: "#3b82f6" }}>
-                        👟 {m.assists ?? 0}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Total</p>
-                      <p className="text-sm font-black" style={{ color: "#fbbf24" }}>
-                        {(m.goals ?? 0) + (m.assists ?? 0)}
-                      </p>
-                    </div>
-                  </div>
+                      <div className="space-y-3">
+                        {g.matches.map((m) => {
+                          const gs = (m as any).goalsScored ?? (m as any).goals_scored;
+                          const gc = (m as any).goalsConceded ?? (m as any).goals_conceded;
+                          const hasScore = typeof gs === "number" && typeof gc === "number";
+                          const scoreText = hasScore ? `${gs}-${gc}` : "—";
 
-                  {/* Notas */}
-                  {m.notes && (
-                    <div
-                      className="mb-3 p-3 rounded-xl"
-                      style={{
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <p className="text-[9px] text-gray-400 italic leading-relaxed">
-                        "{m.notes}"
-                      </p>
-                    </div>
-                  )}
+                          return (
+                            <div
+                              key={m.id}
+                              className="p-5 rounded-3xl"
+                              style={{
+                                background: "rgba(10, 25, 10, 0.9)",
+                                border: "1px solid rgba(255,255,255,0.1)",
+                                borderLeft: `5px solid ${cardBorderByResult(m.result)}`,
+                              }}
+                            >
+                              {/* Header: Rival y MVP */}
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h3
+                                      className="font-black text-base italic uppercase"
+                                      style={{
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        maxWidth: "100%",
+                                      }}
+                                      title={m.opponent ?? "Sin rival"}
+                                    >
+                                      {m.opponent ?? "Sin rival"}
+                                    </h3>
+                                    {m.isMvp && (
+                                      <span className="text-lg" style={{ color: "#fbbf24" }} title="MVP">
+                                        ⭐
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div
+                                  className="px-3 py-1 rounded-full text-[10px] font-black uppercase"
+                                  style={{
+                                    background: cardBorderByResult(m.result) + "20",
+                                    color: cardBorderByResult(m.result),
+                                    border: `1px solid ${cardBorderByResult(m.result)}40`,
+                                  }}
+                                >
+                                  {hasScore ? scoreText : resultLabel(m.result)}
+                                </div>
+                              </div>
 
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-2 border-t border-white/5">
-                    <button
-                      onClick={() => openEditModal(m.id)}
-                      className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors hover:bg-white/10"
-                      style={{
-                        background: "rgba(255,255,255,0.1)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                      }}
-                    >
-                      ✏️ Editar
-                    </button>
-                    <button
-                      disabled={busyId === m.id}
-                      onClick={async () => {
-                        const ok = confirm("¿Eliminar este partido? (no se puede deshacer)");
-                        if (!ok) return;
-                        try {
-                          setBusyId(m.id);
-                          showToast("Eliminando partido...", "info");
-                          await matchesApi.remove(m.id);
-                          await load();
-                          showToast("Partido eliminado exitosamente", "success");
-                        } catch (e: any) {
-                          const errorMessage = e.message ?? "Error al eliminar el partido";
-                          showToast(translateError(errorMessage), "error");
-                        } finally {
-                          setBusyId(null);
-                        }
-                      }}
-                      className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-colors hover:bg-red-500/20"
-                      style={{
-                        background: "rgba(239, 68, 68, 0.2)",
-                        border: "1px solid rgba(239, 68, 68, 0.3)",
-                        color: "#fca5a5",
-                      }}
-                    >
-                      {busyId === m.id ? "..." : "🗑️ Borrar"}
-                    </button>
-                  </div>
+                              {/* Stats Grid */}
+                              <div className="grid grid-cols-4 gap-3 mb-3">
+                                <div className="text-center">
+                                  <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Formato</p>
+                                  <p className="text-sm font-black">{m.format ? `F${m.format}` : "—"}</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Goles</p>
+                                  <p className="text-sm font-black" style={{ color: "#22c55e" }}>
+                                    ⚽ {m.goals ?? 0}
+                                  </p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Asistencias</p>
+                                  <p className="text-sm font-black" style={{ color: "#3b82f6" }}>
+                                    👟 {m.assists ?? 0}
+                                  </p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">Total</p>
+                                  <p className="text-sm font-black" style={{ color: "#fbbf24" }}>
+                                    {(m.goals ?? 0) + (m.assists ?? 0)}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Notas */}
+                              {m.notes && (
+                                <div
+                                  className="mb-3 p-3 rounded-xl"
+                                  style={{
+                                    background: "rgba(255,255,255,0.05)",
+                                    border: "1px solid rgba(255,255,255,0.08)",
+                                  }}
+                                >
+                                  <p className="text-[9px] text-gray-400 italic leading-relaxed">
+                                    “{m.notes}”
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Actions */}
+                              <div className="flex gap-2 pt-2 border-t border-white/5">
+                                <button
+                                  onClick={() => openEditModal(m.id)}
+                                  className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors hover:bg-white/10"
+                                  style={{
+                                    background: "rgba(255,255,255,0.1)",
+                                    border: "1px solid rgba(255,255,255,0.15)",
+                                  }}
+                                >
+                                  ✏️ Editar
+                                </button>
+                                <button
+                                  disabled={busyId === m.id}
+                                  onClick={async () => {
+                                    const ok = confirm("¿Eliminar este partido? (no se puede deshacer)");
+                                    if (!ok) return;
+                                    try {
+                                      setBusyId(m.id);
+                                      showToast("Eliminando partido...", "info");
+                                      await matchesApi.remove(m.id);
+                                      await load();
+                                      showToast("Partido eliminado exitosamente", "success");
+                                    } catch (e: any) {
+                                      const errorMessage = e.message ?? "Error al eliminar el partido";
+                                      showToast(translateError(errorMessage), "error");
+                                    } finally {
+                                      setBusyId(null);
+                                    }
+                                  }}
+                                  className="flex-1 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-colors hover:bg-red-500/20"
+                                  style={{
+                                    background: "rgba(239, 68, 68, 0.2)",
+                                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                                    color: "#fca5a5",
+                                  }}
+                                >
+                                  {busyId === m.id ? "..." : "🗑️ Borrar"}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                );
-              })
+              </div>
             )}
           </div>
         )}
       </main>
-
-      {/* Bottom nav - Ocultar cuando hay un input enfocado (teclado visible) */}
-      <nav
-        className="fixed bottom-0 left-0 right-0 border-t border-white/5 px-6 pt-4 pb-8 flex justify-around rounded-t-3xl z-[100] transition-transform duration-300"
-        style={{ 
-          background: "rgba(0,0,0,0.95)",
-          transform: isInputFocused ? "translateY(100%)" : "translateY(0)",
-          paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))"
-        }}
-      >
-        <button
-          onClick={() => setTab("inicio")}
-          className="flex flex-col items-center gap-1"
-          style={{ color: tab === "inicio" ? "#22c55e" : "#9ca3af" }}
-        >
-          <i className="fas fa-home" style={{ fontSize: 18 }}></i>
-          <span className="text-[8px] font-black uppercase">Inicio</span>
-        </button>
-
-        <button
-          onClick={() => setTab("stats")}
-          className="flex flex-col items-center gap-1"
-          style={{ color: tab === "stats" ? "#22c55e" : "#9ca3af" }}
-        >
-          <i className="fas fa-chart-line" style={{ fontSize: 18 }}></i>
-          <span className="text-[8px] font-black uppercase">Stats</span>
-        </button>
-
-        <button
-          onClick={() => setTab("logros")}
-          className="flex flex-col items-center gap-1"
-          style={{ color: tab === "logros" ? "#22c55e" : "#9ca3af" }}
-        >
-          <i className="fas fa-trophy" style={{ fontSize: 18 }}></i>
-          <span className="text-[8px] font-black uppercase">Logros</span>
-        </button>
-
-        <button
-          onClick={() => setTab("historial")}
-          className="flex flex-col items-center gap-1"
-          style={{ color: tab === "historial" ? "#22c55e" : "#9ca3af" }}
-        >
-          <i className="fas fa-history" style={{ fontSize: 18 }}></i>
-          <span className="text-[8px] font-black uppercase">Historial</span>
-        </button>
-      </nav>
 
       {/* Modal de edición */}
       {editId && (

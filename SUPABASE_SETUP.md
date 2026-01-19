@@ -46,9 +46,8 @@ Para obtener las keys:
 
 1. Ve a SQL Editor en Supabase
 2. Ejecuta los scripts de migración en orden:
-   - Primero: `supabase/migrations/002_create_profiles.sql` (tabla de perfiles de usuario)
-   - Segundo: `supabase/migrations/001_create_matches.sql` (tabla de partidos)
-   - Tercero: `supabase/migrations/003_fix_matches_user_id.sql` (trigger para asignar user_id automáticamente)
+   - `supabase/migrations/004_create_feedback.sql` (tabla de sugerencias/recomendaciones)
+   - `supabase/migrations/005_update_feedback_kinds.sql` (solo si ya habías ejecutado la 004 anterior con otros tipos)
 3. Verifica que ambas tablas se hayan creado correctamente
 
 ## Paso 5: Migrar Datos
