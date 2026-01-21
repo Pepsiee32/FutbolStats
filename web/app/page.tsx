@@ -366,6 +366,27 @@ export default function HomePage() {
     const totalAssists = items.reduce((acc, m) => acc + (m.assists ?? 0), 0);
     const totalMVPs = items.filter((m) => m.isMvp).length;
     const totalMatches = items.length;
+    const totalWins = items.filter((m) => m.result === 1).length;
+    const totalContributions = totalGoals + totalAssists;
+
+    const maxGoalsInMatch = items.reduce((acc, m) => Math.max(acc, m.goals ?? 0), 0);
+    const maxAssistsInMatch = items.reduce((acc, m) => Math.max(acc, m.assists ?? 0), 0);
+    const completeMatches = items.filter((m) => (m.goals ?? 0) > 0 && (m.assists ?? 0) > 0).length;
+
+    const formatsPlayedCount = new Set(
+      items
+        .map((m) => (typeof m.format === "number" ? m.format : Number(m.format)))
+        .filter((f) => [5, 7, 8, 11].includes(f)),
+    ).size;
+
+    const cleanSheets = items.reduce((acc, m) => {
+      const rec = m as unknown as Record<string, unknown>;
+      const conceded =
+        rec.goalsConceded ??
+        rec.goals_conceded ??
+        null;
+      return typeof conceded === "number" && conceded === 0 ? acc + 1 : acc;
+    }, 0);
     
     // Calculate longest win streak (5+ consecutive wins anywhere in the list)
     let maxStreak = 0;
@@ -394,13 +415,13 @@ export default function HomePage() {
     }
 
     // Calculate Messi 91: goles en el año actual
-    const currentYear = new Date().getFullYear();
+    const currentYear = new Date().getUTCFullYear();
     let goalsInCurrentYear = 0;
     
     for (const match of items) {
       try {
         const matchDate = new Date(match.date);
-        const year = matchDate.getFullYear();
+        const year = matchDate.getUTCFullYear();
         if (year === currentYear) {
           goalsInCurrentYear += (match.goals ?? 0);
         }
@@ -409,21 +430,155 @@ export default function HomePage() {
       }
     }
 
+    // Fecha de desbloqueo (tooltip): derivada de la fecha de partidos
+    const unlockedAt: Record<string, string | undefined> = {};
+    const setUnlockedAtIfMissing = (key: string, date: string | undefined) => {
+      if (!date) return;
+      if (!unlockedAt[key]) unlockedAt[key] = date;
+    };
+
+    const parseTime = (d: unknown) => {
+      if (typeof d !== "string") return null;
+      const t = Date.parse(d);
+      return Number.isFinite(t) ? t : null;
+    };
+
+    const sortedByDate = [...items].sort((a, b) => {
+      const ta = parseTime(a.date);
+      const tb = parseTime(b.date);
+      return (ta ?? Number.POSITIVE_INFINITY) - (tb ?? Number.POSITIVE_INFINITY);
+    });
+
+    let cumGoals = 0;
+    let cumAssists = 0;
+    let cumWins = 0;
+    let cumMVPs = 0;
+    let cumMatches = 0;
+    let cumCleanSheets = 0;
+    let yearGoalsCum = 0;
+
+    let winStreak = 0;
+    let unbeatenStreak = 0;
+    const formatsSet = new Set<number>();
+
+    for (const m of sortedByDate) {
+      const date = typeof m.date === "string" ? m.date : undefined;
+      const goals = m.goals ?? 0;
+      const assists = m.assists ?? 0;
+
+      cumMatches += 1;
+      cumGoals += goals;
+      cumAssists += assists;
+      if (m.result === 1) cumWins += 1;
+      if (m.isMvp) cumMVPs += 1;
+
+      const rec = m as unknown as Record<string, unknown>;
+      const conceded = rec.goalsConceded ?? rec.goals_conceded ?? null;
+      if (typeof conceded === "number" && conceded === 0) cumCleanSheets += 1;
+
+      const fmt = typeof m.format === "number" ? m.format : Number(m.format);
+      if ([5, 7, 8, 11].includes(fmt)) formatsSet.add(fmt);
+
+      winStreak = m.result === 1 ? winStreak + 1 : 0;
+      unbeatenStreak = m.result !== -1 ? unbeatenStreak + 1 : 0;
+
+      // Targets acumulativos
+      if (cumMatches >= 1) setUnlockedAtIfMissing("debut", date);
+      if (cumMatches >= 10) setUnlockedAtIfMissing("regular", date);
+      if (cumMatches >= 30) setUnlockedAtIfMissing("incansable", date);
+      if (cumMatches >= 100) setUnlockedAtIfMissing("veterano", date);
+
+      if (cumWins >= 1) setUnlockedAtIfMissing("primeraVictoria", date);
+      if (cumWins >= 10) setUnlockedAtIfMissing("ganador", date);
+      if (cumWins >= 25) setUnlockedAtIfMissing("campeon", date);
+
+      if (cumGoals >= 10) setUnlockedAtIfMissing("goleador", date);
+      if (cumGoals >= 50) setUnlockedAtIfMissing("rompeRedes", date);
+      if (cumGoals >= 100) setUnlockedAtIfMissing("leyendaGoles", date);
+
+      if (cumAssists >= 10) setUnlockedAtIfMissing("asistidor", date);
+      if (cumAssists >= 25) setUnlockedAtIfMissing("asistidorSerial", date);
+      if (cumAssists >= 50) setUnlockedAtIfMissing("maestroAsist", date);
+
+      if (cumMVPs >= 5) setUnlockedAtIfMissing("estrella", date);
+      if (cumMVPs >= 10) setUnlockedAtIfMissing("mvp", date);
+
+      if (cumCleanSheets >= 5) setUnlockedAtIfMissing("vallaInvicta", date);
+
+      const cumContrib = cumGoals + cumAssists;
+      if (cumContrib >= 100) setUnlockedAtIfMissing("jugadorTotal", date);
+
+      // Targets por partido
+      if (assists >= 3) setUnlockedAtIfMissing("tripleAsistencia", date);
+      if (goals >= 3) setUnlockedAtIfMissing("hatTrick", date);
+      if (goals >= 4) setUnlockedAtIfMissing("poker", date);
+
+      // Targets especiales
+      if (goals > 0 && assists > 0) setUnlockedAtIfMissing("completo", date);
+      if (formatsSet.size >= 4) setUnlockedAtIfMissing("polivalente", date);
+
+      // Rachas
+      if (winStreak >= 5) setUnlockedAtIfMissing("invencible", date);
+      if (winStreak >= 7) setUnlockedAtIfMissing("campeonDelMundoPlm", date);
+      if (unbeatenStreak >= 10) setUnlockedAtIfMissing("muro", date);
+
+      // Messi 2012 (temporada actual)
+      try {
+        const t = parseTime(m.date);
+        if (t !== null) {
+          const y = new Date(t).getUTCFullYear();
+          if (y === currentYear) {
+            yearGoalsCum += goals;
+            if (yearGoalsCum >= 91) setUnlockedAtIfMissing("messi91", date);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       messi91: { 
         current: goalsInCurrentYear, 
         target: 91, 
         unlocked: goalsInCurrentYear >= 91,
-        year: currentYear 
+        year: currentYear,
+        unlockedAt: unlockedAt.messi91,
       },
-      invencible: { streak: maxStreak, unlocked: maxStreak >= 5 },
-      mvp: { current: totalMVPs, target: 10, unlocked: totalMVPs >= 10 },
-      // Nuevos logros
-      asistidorSerial: { current: totalAssists, target: 25, unlocked: totalAssists >= 25 },
-      rompeRedes: { current: totalGoals, target: 50, unlocked: totalGoals >= 50 },
-      muro: { streak: maxUnbeatenStreak, unlocked: maxUnbeatenStreak >= 10 },
-      incansable: { current: totalMatches, target: 30, unlocked: totalMatches >= 30 },
-      veterano: { current: totalMatches, target: 100, unlocked: totalMatches >= 100 },
+      // Victorias
+      invencible: { current: maxStreak, target: 5, unlocked: maxStreak >= 5, unlockedAt: unlockedAt.invencible },
+      primeraVictoria: { current: totalWins, target: 1, unlocked: totalWins >= 1, unlockedAt: unlockedAt.primeraVictoria },
+      ganador: { current: totalWins, target: 10, unlocked: totalWins >= 10, unlockedAt: unlockedAt.ganador },
+      campeon: { current: totalWins, target: 25, unlocked: totalWins >= 25, unlockedAt: unlockedAt.campeon },
+      campeonDelMundoPlm: { current: maxStreak, target: 7, unlocked: maxStreak >= 7, unlockedAt: unlockedAt.campeonDelMundoPlm },
+
+      // Speciales
+      mvp: { current: totalMVPs, target: 10, unlocked: totalMVPs >= 10, unlockedAt: unlockedAt.mvp },
+      estrella: { current: totalMVPs, target: 5, unlocked: totalMVPs >= 5, unlockedAt: unlockedAt.estrella },
+      muro: { current: maxUnbeatenStreak, target: 10, unlocked: maxUnbeatenStreak >= 10, unlockedAt: unlockedAt.muro },
+      polivalente: { current: formatsPlayedCount, target: 4, unlocked: formatsPlayedCount >= 4, unlockedAt: unlockedAt.polivalente },
+      completo: { current: completeMatches, target: 1, unlocked: completeMatches >= 1, unlockedAt: unlockedAt.completo },
+      vallaInvicta: { current: cleanSheets, target: 5, unlocked: cleanSheets >= 5, unlockedAt: unlockedAt.vallaInvicta },
+      jugadorTotal: { current: totalContributions, target: 100, unlocked: totalContributions >= 100, unlockedAt: unlockedAt.jugadorTotal },
+
+      // Asistencias
+      asistidor: { current: totalAssists, target: 10, unlocked: totalAssists >= 10, unlockedAt: unlockedAt.asistidor },
+      asistidorSerial: { current: totalAssists, target: 25, unlocked: totalAssists >= 25, unlockedAt: unlockedAt.asistidorSerial },
+      maestroAsist: { current: totalAssists, target: 50, unlocked: totalAssists >= 50, unlockedAt: unlockedAt.maestroAsist },
+      tripleAsistencia: { current: maxAssistsInMatch, target: 3, unlocked: maxAssistsInMatch >= 3, unlockedAt: unlockedAt.tripleAsistencia },
+
+      // Goles
+      goleador: { current: totalGoals, target: 10, unlocked: totalGoals >= 10, unlockedAt: unlockedAt.goleador },
+      rompeRedes: { current: totalGoals, target: 50, unlocked: totalGoals >= 50, unlockedAt: unlockedAt.rompeRedes },
+      leyendaGoles: { current: totalGoals, target: 100, unlocked: totalGoals >= 100, unlockedAt: unlockedAt.leyendaGoles },
+      hatTrick: { current: maxGoalsInMatch, target: 3, unlocked: maxGoalsInMatch >= 3, unlockedAt: unlockedAt.hatTrick },
+      poker: { current: maxGoalsInMatch, target: 4, unlocked: maxGoalsInMatch >= 4, unlockedAt: unlockedAt.poker },
+
+      // Partidos
+      debut: { current: totalMatches, target: 1, unlocked: totalMatches >= 1, unlockedAt: unlockedAt.debut },
+      regular: { current: totalMatches, target: 10, unlocked: totalMatches >= 10, unlockedAt: unlockedAt.regular },
+      incansable: { current: totalMatches, target: 30, unlocked: totalMatches >= 30, unlockedAt: unlockedAt.incansable },
+      veterano: { current: totalMatches, target: 100, unlocked: totalMatches >= 100, unlockedAt: unlockedAt.veterano },
     };
   }, [items]);
 
@@ -1693,7 +1848,7 @@ export default function HomePage() {
             {(() => {
               const list = Object.values(achievements);
               const total = list.length;
-              const unlocked = list.filter((a: any) => a?.unlocked).length;
+              const unlocked = list.filter((a) => (a as { unlocked?: boolean })?.unlocked).length;
               const pct = total > 0 ? Math.round((unlocked / total) * 100) : 0;
 
               return (
@@ -1734,231 +1889,605 @@ export default function HomePage() {
                 </>
               );
             })()}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Messi 91 */}
-              <div
-                className={`p-4 rounded-3xl text-center ${
-                  achievements.messi91.unlocked ? "" : "grayscale opacity-40"
-                }`}
-                style={{
-                  background: achievements.messi91.unlocked
-                    ? "rgba(10, 25, 10, 0.9)"
-                    : "rgba(10, 25, 10, 0.9)",
-                  border: achievements.messi91.unlocked
-                    ? "1px solid #fbbf24"
-                    : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: achievements.messi91.unlocked
-                    ? "0 0 15px rgba(251, 191, 36, 0.2)"
-                    : "none",
-                }}
-              >
-                <div className="text-4xl mb-2">🐐</div>
-                <h4 className="font-black text-[10px] uppercase">Messi 2012</h4>
-                <p className="text-[8px] text-gray-500 mb-3">91 goles.</p>
-                <div className="bg-white/5 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-yellow-500 h-full"
-                    style={{
-                      width: `${Math.min((achievements.messi91.current / 91) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-[9px] font-black text-green-500 mt-1">
-                  Goles en la Temporada {achievements.messi91.year}: {achievements.messi91.current}
-                </p>
-              </div>
+            {(() => {
+              type AchievementCategoryKey =
+                | "goles"
+                | "asistencias"
+                | "partidos"
+                | "victorias"
+                | "speciales";
 
-              {/* Invencible */}
-              <div
-                className={`p-4 rounded-3xl text-center ${
-                  achievements.invencible.unlocked ? "" : "grayscale opacity-40"
-                }`}
-                style={{
-                  background: "rgba(10, 25, 10, 0.9)",
-                  border: achievements.invencible.unlocked
-                    ? "1px solid #fbbf24"
-                    : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: achievements.invencible.unlocked
-                    ? "0 0 15px rgba(251, 191, 36, 0.2)"
-                    : "none",
-                }}
-              >
-                <div className="text-4xl mb-2">🛡️</div>
-                <h4 className="font-black text-[10px] uppercase">Invencible</h4>
-                <p className="text-[8px] text-gray-500">5 victorias seguidas.</p>
-                <p className="text-[9px] font-black text-green-500 mt-1">
-                  Mejor Racha Conseguida: {achievements.invencible.streak}
-                </p>
-              </div>
+              type AchievementState = {
+                unlocked?: boolean;
+                current?: number;
+                target?: number;
+                year?: number;
+                unlockedAt?: string;
+              };
 
-              {/* MVP */}
-              <div
-                className={`p-4 rounded-3xl text-center ${
-                  achievements.mvp.unlocked ? "" : "grayscale opacity-40"
-                }`}
-                style={{
-                  background: "rgba(10, 25, 10, 0.9)",
-                  border: achievements.mvp.unlocked
-                    ? "1px solid #fbbf24"
-                    : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: achievements.mvp.unlocked
-                    ? "0 0 15px rgba(251, 191, 36, 0.2)"
-                    : "none",
-                }}
-              >
-                <div className="text-4xl mb-2">⭐</div>
-                <h4 className="font-black text-[10px] uppercase">El Elegido</h4>
-                <p className="text-[8px] text-gray-500">Gana 10 MVPs.</p>
-                <p className="text-[9px] font-black text-yellow-500 mt-1">
-                  {achievements.mvp.current} / 10
-                </p>
-              </div>
-                {/* Fortaleza */}
-              <div
-                className={`p-4 rounded-3xl text-center ${
-                  achievements.muro.unlocked ? "" : "grayscale opacity-40"
-                }`}
-                style={{
-                  background: "rgba(10, 25, 10, 0.9)",
-                  border: achievements.muro.unlocked
-                    ? "1px solid #fbbf24"
-                    : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: achievements.muro.unlocked
-                    ? "0 0 15px rgba(251, 191, 36, 0.2)"
-                    : "none",
-                }}
-              >
-                <div className="text-4xl mb-2">🏰</div>
-                <h4 className="font-black text-[10px] uppercase">Fortaleza</h4>
-                <p className="text-[8px] text-gray-500">10 partidos sin perder.</p>
-                <p className="text-[9px] font-black text-green-500 mt-1">
-                  Mejor Racha: {achievements.muro.streak}
-                </p>
-              </div>
-              {/* Rompe-redes */}
-              <div
-                className={`p-4 rounded-3xl text-center ${
-                  achievements.rompeRedes.unlocked ? "" : "grayscale opacity-40"
-                }`}
-                style={{
-                  background: "rgba(10, 25, 10, 0.9)",
-                  border: achievements.rompeRedes.unlocked
-                    ? "1px solid #fbbf24"
-                    : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: achievements.rompeRedes.unlocked
-                    ? "0 0 15px rgba(251, 191, 36, 0.2)"
-                    : "none",
-                }}
-              >
-                <div className="text-4xl mb-2">⚽</div>
-                <h4 className="font-black text-[10px] uppercase">Rompe-redes</h4>
-                <p className="text-[8px] text-gray-500 mb-3">50 goles totales.</p>
-                <div className="bg-white/5 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-yellow-500 h-full"
-                    style={{
-                      width: `${Math.min((achievements.rompeRedes.current / 50) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-[8px] mt-1 font-bold">
-                  {achievements.rompeRedes.current} / 50
-                </p>
-              </div>
-              
-              {/* Asistidor Serial */}
-              <div
-                className={`p-4 rounded-3xl text-center ${
-                  achievements.asistidorSerial.unlocked ? "" : "grayscale opacity-40"
-                }`}
-                style={{
-                  background: "rgba(10, 25, 10, 0.9)",
-                  border: achievements.asistidorSerial.unlocked
-                    ? "1px solid #fbbf24"
-                    : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: achievements.asistidorSerial.unlocked
-                    ? "0 0 15px rgba(251, 191, 36, 0.2)"
-                    : "none",
-                }}
-              >
-                <div className="text-4xl mb-2">👟</div>
-                <h4 className="font-black text-[10px] uppercase">Asistidor Serial</h4>
-                <p className="text-[8px] text-gray-500 mb-3">25 asistencias totales.</p>
-                <div className="bg-white/5 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-yellow-500 h-full"
-                    style={{
-                      width: `${Math.min((achievements.asistidorSerial.current / 25) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-[8px] mt-1 font-bold">
-                  {achievements.asistidorSerial.current} / 25
-                </p>
-              </div>
-              
-              {/* Incansable */}
-              <div
-                className={`p-4 rounded-3xl text-center ${
-                  achievements.incansable.unlocked ? "" : "grayscale opacity-40"
-                }`}
-                style={{
-                  background: "rgba(10, 25, 10, 0.9)",
-                  border: achievements.incansable.unlocked
-                    ? "1px solid #fbbf24"
-                    : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: achievements.incansable.unlocked
-                    ? "0 0 15px rgba(251, 191, 36, 0.2)"
-                    : "none",
-                }}
-              >
-                <div className="text-4xl mb-2">🏃‍♂️</div>
-                <h4 className="font-black text-[10px] uppercase">Incansable</h4>
-                <p className="text-[8px] text-gray-500 mb-3">30 partidos jugados.</p>
-                <div className="bg-white/5 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-yellow-500 h-full"
-                    style={{
-                      width: `${Math.min((achievements.incansable.current / 30) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-[8px] mt-1 font-bold">
-                  {achievements.incansable.current} / 30
-                </p>
-              </div>
+              type AchievementDef = {
+                key: string;
+                category: AchievementCategoryKey;
+                hidden?: boolean;
+                rarity?: "epic" | "legendary";
+                icon: string;
+                title: string;
+                description: string | ((a: AchievementState) => string);
+                barColor?: string;
+                valueText?: (a: AchievementState) => string;
+              };
 
-              {/* Veterano */}
-              <div
-                className={`p-4 rounded-3xl text-center ${
-                  achievements.veterano.unlocked ? "" : "grayscale opacity-40"
-                }`}
-                style={{
-                  background: "rgba(10, 25, 10, 0.9)",
-                  border: achievements.veterano.unlocked
-                    ? "1px solid #fbbf24"
-                    : "1px solid rgba(255,255,255,0.1)",
-                  boxShadow: achievements.veterano.unlocked
-                    ? "0 0 15px rgba(251, 191, 36, 0.2)"
-                    : "none",
-                }}
-              >
-                <div className="text-4xl mb-2">🎖️</div>
-                <h4 className="font-black text-[10px] uppercase">Veterano</h4>
-                <p className="text-[8px] text-gray-500 mb-3">100 partidos jugados.</p>
-                <div className="bg-white/5 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="bg-yellow-500 h-full"
-                    style={{
-                      width: `${Math.min((achievements.veterano.current / 100) * 100, 100)}%`,
-                    }}
-                  />
+              const categories: Array<{ key: AchievementCategoryKey; label: string; icon: string }> = [
+                { key: "goles", label: "Goles", icon: "⚽" },
+                { key: "asistencias", label: "Asistencias", icon: "🤝" },
+                { key: "partidos", label: "Partidos", icon: "📅" },
+                { key: "victorias", label: "Victorias", icon: "🏆" },
+                { key: "speciales", label: "Speciales", icon: "✨" },
+              ];
+
+              const defs: AchievementDef[] = [
+                // GOLES
+                {
+                  key: "goleador",
+                  category: "goles",
+                  icon: "⚽",
+                  title: "Goleador",
+                  description: "10 goles totales.",
+                  barColor: "#eab308",
+                },
+                {
+                  key: "rompeRedes",
+                  category: "goles",
+                  icon: "🥅",
+                  title: "Rompe-redes",
+                  description: "50 goles totales.",
+                  barColor: "#eab308",
+                },
+                {
+                  key: "leyendaGoles",
+                  category: "goles",
+                  icon: "👑",
+                  title: "Leyenda",
+                  description: "100 goles totales.",
+                  barColor: "#eab308",
+                  rarity: "legendary",
+                },
+                {
+                  key: "hatTrick",
+                  category: "goles",
+                  icon: "🎩",
+                  title: "Hat-trick",
+                  description: "3 goles en un partido.",
+                  barColor: "#eab308",
+                  valueText: (a) => `Mejor marca: ${a?.current ?? 0} goles`,
+                },
+                {
+                  key: "poker",
+                  category: "goles",
+                  icon: "🃏",
+                  title: "Póker",
+                  description: "4 goles en un partido.",
+                  barColor: "#eab308",
+                  rarity: "epic",
+                  valueText: (a) => `Mejor marca: ${a?.current ?? 0} goles`,
+                },
+                {
+                  key: "messi91",
+                  category: "goles",
+                  icon: "🐐",
+                  title: "Messi 2012",
+                  description: (a) => `91 goles en el año ${a?.year ?? new Date().getFullYear()}.`,
+                  barColor: "#eab308",
+                  rarity: "legendary",
+                  valueText: (a) =>
+                    `Temporada ${a?.year ?? new Date().getFullYear()}: ${a?.current ?? 0} / ${a?.target ?? 91}`,
+                },
+                // ASISTENCIAS
+                {
+                  key: "asistidor",
+                  category: "asistencias",
+                  icon: "👟",
+                  title: "Asistidor",
+                  description: "10 asistencias totales.",
+                  barColor: "#3b82f6",
+                },
+                {
+                  key: "asistidorSerial",
+                  category: "asistencias",
+                  icon: "🤝",
+                  title: "Asistidor serial",
+                  description: "25 asistencias totales.",
+                  barColor: "#3b82f6",
+                },
+                {
+                  key: "maestroAsist",
+                  category: "asistencias",
+                  icon: "🧠",
+                  title: "Maestro del pase",
+                  description: "50 asistencias totales.",
+                  barColor: "#3b82f6",
+                  rarity: "epic",
+                },
+                {
+                  key: "tripleAsistencia",
+                  category: "asistencias",
+                  icon: "🧙‍♂️",
+                  title: "Triple asistencia",
+                  description: "3 asistencias en un partido.",
+                  barColor: "#3b82f6",
+                  rarity: "epic",
+                  valueText: (a) => `Mejor marca: ${a?.current ?? 0} asistencias`,
+                },
+
+                // PARTIDOS
+                {
+                  key: "debut",
+                  category: "partidos",
+                  icon: "🆕",
+                  title: "Debut",
+                  description: "Registra tu primer partido.",
+                  barColor: "#d1d5db",
+                },
+                {
+                  key: "regular",
+                  category: "partidos",
+                  icon: "📈",
+                  title: "Regular",
+                  description: "10 partidos jugados.",
+                  barColor: "#d1d5db",
+                },
+                {
+                  key: "incansable",
+                  category: "partidos",
+                  icon: "🏃‍♂️",
+                  title: "Incansable",
+                  description: "30 partidos jugados.",
+                  barColor: "#d1d5db",
+                },
+                {
+                  key: "veterano",
+                  category: "partidos",
+                  icon: "🎖️",
+                  title: "Veterano",
+                  description: "100 partidos jugados.",
+                  barColor: "#d1d5db",
+                  rarity: "epic",
+                },
+
+                // VICTORIAS
+                {
+                  key: "primeraVictoria",
+                  category: "victorias",
+                  icon: "🥇",
+                  title: "Primera victoria",
+                  description: "Gana tu primer partido.",
+                  barColor: "#22c55e",
+                },
+                {
+                  key: "ganador",
+                  category: "victorias",
+                  icon: "✅",
+                  title: "Ganador",
+                  description: "10 victorias totales.",
+                  barColor: "#22c55e",
+                },
+                {
+                  key: "campeon",
+                  category: "victorias",
+                  icon: "🏅",
+                  title: "Campeón",
+                  description: "25 victorias totales.",
+                  barColor: "#22c55e",
+                  rarity: "epic",
+                },
+                {
+                  key: "invencible",
+                  category: "victorias",
+                  icon: "🛡️",
+                  title: "Invencible",
+                  description: "5 victorias seguidas.",
+                  barColor: "#22c55e",
+                  valueText: (a) => `Mejor racha: ${a?.current ?? 0}`,
+                },
+                
+
+                // SPECIALES
+                {
+                  key: "estrella",
+                  category: "speciales",
+                  icon: "⭐",
+                  title: "Estrella",
+                  description: "Gana 5 MVPs.",
+                  barColor: "#fbbf24",
+                },
+                {
+                  key: "mvp",
+                  category: "speciales",
+                  icon: "🌟",
+                  title: "El Elegido",
+                  description: "Gana 10 MVPs.",
+                  barColor: "#fbbf24",
+                  rarity: "epic",
+                },
+                {
+                  key: "muro",
+                  category: "speciales",
+                  hidden: true,
+                  icon: "⚔️",
+                  title: "Fortaleza",
+                  description: "10 partidos sin perder.",
+                  barColor: "#fbbf24",
+                  valueText: (a) => `Mejor racha: ${a?.current ?? 0}`,
+                  rarity: "epic",
+                },
+                {
+                  key: "polivalente",
+                  category: "speciales",
+                  hidden: true,
+                  icon: "🧩",
+                  title: "Polivalente",
+                  description: "Juega en F5, F7, F8 y F11.",
+                  barColor: "#fbbf24",
+                  valueText: (a) => `Formatos jugados: ${a?.current ?? 0} / ${a?.target ?? 4}`,
+                  rarity: "epic",
+                },
+                {
+                  key: "completo",
+                  category: "speciales",
+                  hidden: true,
+                  icon: "☯️",
+                  title: "Partido completo",
+                  description: "Marca y asiste en el mismo partido.",
+                  barColor: "#fbbf24",
+                  valueText: (a) => `Partidos completos: ${a?.current ?? 0}`,
+                  rarity: "epic",
+                },
+                {
+                  key: "vallaInvicta",
+                  category: "speciales",
+                  icon: "🧤",
+                  title: "Valla invicta",
+                  description: "5 partidos sin recibir goles.",
+                  barColor: "#fbbf24",
+                },
+                {
+                  key: "jugadorTotal",
+                  category: "speciales",
+                  hidden: true,
+                  icon: "👽",
+                  title: "Jugador total",
+                  description: "100 contribuciones (goles + asistencias).",
+                  barColor: "#fbbf24",
+                  rarity: "legendary",
+                },
+                {
+                  key: "campeonDelMundoPlm",
+                  category: "speciales",
+                  icon: "🖐",
+                  title: "Campeon del Mundo PLM",
+                  description: "7 victorias seguidas.",
+                  barColor: "#a855f7",
+                  valueText: (a) => `Mejor racha: ${a?.current ?? 0}`,
+                  rarity: "epic",
+                },
+              ];
+
+              const hexToRgba = (hex: string, alpha: number) => {
+                if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return `rgba(255,255,255,${alpha})`;
+                const r = parseInt(hex.slice(1, 3), 16);
+                const g = parseInt(hex.slice(3, 5), 16);
+                const b = parseInt(hex.slice(5, 7), 16);
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+              };
+
+              const mixHex = (a: string, b: string, t: number) => {
+                const clamp = (n: number) => Math.max(0, Math.min(1, n));
+                const tt = clamp(t);
+                if (!/^#[0-9a-fA-F]{6}$/.test(a) || !/^#[0-9a-fA-F]{6}$/.test(b)) return a;
+                const ar = parseInt(a.slice(1, 3), 16);
+                const ag = parseInt(a.slice(3, 5), 16);
+                const ab = parseInt(a.slice(5, 7), 16);
+                const br = parseInt(b.slice(1, 3), 16);
+                const bg = parseInt(b.slice(3, 5), 16);
+                const bb = parseInt(b.slice(5, 7), 16);
+                const rr = Math.round(ar + (br - ar) * tt);
+                const rg = Math.round(ag + (bg - ag) * tt);
+                const rb = Math.round(ab + (bb - ab) * tt);
+                return `#${rr.toString(16).padStart(2, "0")}${rg.toString(16).padStart(2, "0")}${rb
+                  .toString(16)
+                  .padStart(2, "0")}`;
+              };
+
+              const categoryBarColor: Record<AchievementCategoryKey, string> = {
+                goles: "#eab308",
+                asistencias: "#3b82f6",
+                partidos: "#d1d5db",
+                victorias: "#22c55e",
+                speciales: "#fbbf24",
+              };
+
+              const cardStyleFor = (opts: { isUnlocked: boolean; rarity?: AchievementDef["rarity"]; accentHex: string }) => {
+                const base = "rgba(10, 25, 10, 0.9)";
+                const lockedBorder = "rgba(255,255,255,0.08)";
+                const unlockedBorder = "#fbbf24";
+                const accent = opts.accentHex;
+                const isEpic = opts.rarity === "epic" || opts.rarity === "legendary";
+
+                return {
+                  background: isEpic
+                    ? `radial-gradient(circle at 50% 35%, ${hexToRgba(accent, 0.22)}, ${base} 70%)`
+                    : base,
+                  border: opts.isUnlocked ? `1px solid ${unlockedBorder}` : `1px solid ${lockedBorder}`,
+                  boxShadow: opts.isUnlocked ? `0 0 18px ${hexToRgba(unlockedBorder, 0.18)}` : "none",
+                };
+              };
+
+              const safeNum = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+              const achievementsByKey = achievements as unknown as Record<string, AchievementState>;
+
+              return (
+                <div className="space-y-6">
+                  {categories.map((cat) => {
+                    const catDefs = defs.filter((d) => d.category === cat.key);
+                    const visibleDefs = catDefs.filter((d) => !d.hidden && !!achievementsByKey[d.key]);
+                    const catUnlocked = visibleDefs.filter((d) => achievementsByKey[d.key]?.unlocked).length;
+
+                    return (
+                      <div key={cat.key} className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{cat.icon}</span>
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                              {cat.label}
+                            </h3>
+                          </div>
+                          <span className="text-[10px] font-bold text-gray-500">
+                            {catUnlocked}/{visibleDefs.length}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          {visibleDefs.map((def) => {
+                            const a = achievementsByKey[def.key];
+                            if (!a) return null;
+
+                            const isUnlocked = !!a.unlocked;
+                            const current = safeNum(a.current);
+                            const target = safeNum(a.target);
+                            const pct = target > 0 ? Math.min((current / target) * 100, 100) : isUnlocked ? 100 : 0;
+                            const displayCurrent = target > 0 ? Math.min(current, target) : current;
+                            const isComplete = target > 0 ? current >= target : isUnlocked;
+                            const desc =
+                              typeof def.description === "function" ? def.description(a) : def.description;
+                            const valueText =
+                              def.valueText?.(a) ??
+                              (target > 0 ? `${displayCurrent} / ${target}` : isUnlocked ? "Desbloqueado" : "Bloqueado");
+
+                            const baseColor = def.barColor ?? categoryBarColor[def.category];
+                            const barColor =
+                              def.key === "messi91"
+                                ? mixHex("#f97316", "#ef4444", pct / 100)
+                                : baseColor;
+                            const tooltip =
+                              isComplete && a.unlockedAt
+                                ? `Desbloqueado el ${fmtDate(a.unlockedAt)}`
+                                : isComplete
+                                  ? "Desbloqueado"
+                                  : undefined;
+
+                            return (
+                              <div
+                                key={String(def.key)}
+                                className={`p-4 rounded-3xl text-center relative transition-transform duration-200 ${
+                                  isUnlocked ? "hover:scale-[1.02]" : "opacity-80"
+                                }`}
+                                style={cardStyleFor({ isUnlocked, rarity: def.rarity, accentHex: barColor })}
+                                title={tooltip}
+                              >
+                                {isComplete && (
+                                  <div className="absolute right-3 top-3 text-[10px] font-black" style={{ color: barColor }}>
+                                    ✓
+                                  </div>
+                                )}
+
+                                <div
+                                  className="mx-auto mb-2 rounded-2xl flex items-center justify-center"
+                                  style={{
+                                    width: def.rarity ? 56 : 48,
+                                    height: def.rarity ? 56 : 48,
+                                    fontSize: def.rarity ? 30 : 28,
+                                    background: "rgba(255,255,255,0.05)",
+                                    border: "1px solid rgba(255,255,255,0.10)",
+                                    filter: isUnlocked ? "none" : "grayscale(1)",
+                                    opacity: isUnlocked ? 1 : 0.55,
+                                  }}
+                                >
+                                  {def.icon}
+                                </div>
+                                <h4 className="font-black text-[10px] uppercase">{def.title}</h4>
+                                <p className="text-[8px] text-gray-500 mb-3">{desc}</p>
+
+                                {target > 0 && (
+                                  <>
+                                    <div className="bg-white/5 h-2 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full"
+                                        style={{
+                                          width: `${pct}%`,
+                                          background: barColor,
+                                          boxShadow: isComplete ? `0 0 10px ${hexToRgba(barColor, 0.65)}` : "none",
+                                          filter: isComplete ? "saturate(1.15) brightness(1.08)" : "none",
+                                        }}
+                                      />
+                                    </div>
+                                    <p className="text-[8px] mt-1 font-bold">{valueText}</p>
+                                  </>
+                                )}
+
+                                {target <= 0 && (
+                                  <p className="text-[8px] mt-1 font-bold" style={{ color: isUnlocked ? "#22c55e" : "#9ca3af" }}>
+                                    {valueText}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {(() => {
+                    const hiddenDefs = defs.filter((d) => d.hidden && !!achievementsByKey[d.key]);
+                    if (hiddenDefs.length === 0) return null;
+
+                    const remaining = hiddenDefs.filter((d) => !achievementsByKey[d.key]?.unlocked).length;
+
+                    return (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                          <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                            LOGROS OCULTOS
+                          </h3>
+                        </div>
+
+                        <div
+                          className="p-5 rounded-3xl flex items-center gap-4"
+                          style={{
+                            background: "rgba(10, 25, 10, 0.9)",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                          }}
+                        >
+                          <div
+                            className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl font-black"
+                            style={{
+                              background: "rgba(255,255,255,0.06)",
+                              border: "1px solid rgba(255,255,255,0.1)",
+                            }}
+                          >
+                            ?
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-black">Quedan {remaining} logros ocultos</p>
+                            <p className="text-[10px] text-gray-500">
+                              Los detalles de cada logro se revelarán una vez desbloqueado
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          {hiddenDefs.map((def) => {
+                            const a = achievementsByKey[def.key];
+                            if (!a) return null;
+
+                            const isUnlocked = !!a.unlocked;
+
+                            if (!isUnlocked) {
+                              return (
+                                <div
+                                  key={String(def.key)}
+                                  className="p-4 rounded-3xl text-center relative opacity-70"
+                                  style={cardStyleFor({
+                                    isUnlocked: false,
+                                    rarity: def.rarity,
+                                    accentHex: def.barColor ?? categoryBarColor[def.category],
+                                  })}
+                                >
+                                  <div
+                                    className="mx-auto mb-2 rounded-2xl flex items-center justify-center"
+                                    style={{
+                                      width: 48,
+                                      height: 48,
+                                      fontSize: 28,
+                                      background: "rgba(255,255,255,0.05)",
+                                      border: "1px solid rgba(255,255,255,0.10)",
+                                      filter: "grayscale(1)",
+                                      opacity: 0.55,
+                                    }}
+                                  >
+                                    ❓
+                                  </div>
+                                  <h4 className="font-black text-[10px] uppercase">Logro oculto</h4>
+                                  <p className="text-[8px] text-gray-500 mb-1">
+                                    Se revelará al desbloquearse.
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            // Desbloqueado: mostrar detalles normales
+                            const current = safeNum(a.current);
+                            const target = safeNum(a.target);
+                            const pct = target > 0 ? Math.min((current / target) * 100, 100) : 100;
+                            const displayCurrent = target > 0 ? Math.min(current, target) : current;
+                            const isComplete = target > 0 ? current >= target : true;
+                            const desc =
+                              typeof def.description === "function" ? def.description(a) : def.description;
+                            const valueText =
+                              def.valueText?.(a) ??
+                              (target > 0 ? `${displayCurrent} / ${target}` : "Desbloqueado");
+
+                            const baseColor = def.barColor ?? categoryBarColor[def.category];
+                            const barColor =
+                              def.key === "messi91"
+                                ? mixHex("#f97316", "#ef4444", pct / 100)
+                                : baseColor;
+                            const tooltip = a.unlockedAt ? `Desbloqueado el ${fmtDate(a.unlockedAt)}` : "Desbloqueado";
+
+                            return (
+                              <div
+                                key={String(def.key)}
+                                className="p-4 rounded-3xl text-center relative transition-transform duration-200 hover:scale-[1.02]"
+                                style={cardStyleFor({ isUnlocked: true, rarity: def.rarity, accentHex: barColor })}
+                                title={tooltip}
+                              >
+                                {isComplete && (
+                                  <div className="absolute right-3 top-3 text-[10px] font-black" style={{ color: barColor }}>
+                                    ✓
+                                  </div>
+                                )}
+
+                                <div
+                                  className="mx-auto mb-2 rounded-2xl flex items-center justify-center"
+                                  style={{
+                                    width: def.rarity ? 56 : 48,
+                                    height: def.rarity ? 56 : 48,
+                                    fontSize: def.rarity ? 30 : 28,
+                                    background: "rgba(255,255,255,0.05)",
+                                    border: "1px solid rgba(255,255,255,0.10)",
+                                  }}
+                                >
+                                  {def.icon}
+                                </div>
+                                <h4 className="font-black text-[10px] uppercase">{def.title}</h4>
+                                <p className="text-[8px] text-gray-500 mb-3">{desc}</p>
+
+                                {target > 0 && (
+                                  <>
+                                    <div className="bg-white/5 h-2 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full"
+                                        style={{
+                                          width: `${pct}%`,
+                                          background: barColor,
+                                          boxShadow: isComplete ? `0 0 10px ${hexToRgba(barColor, 0.65)}` : "none",
+                                          filter: isComplete ? "saturate(1.15) brightness(1.08)" : "none",
+                                        }}
+                                      />
+                                    </div>
+                                    <p className="text-[8px] mt-1 font-bold">{valueText}</p>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-                <p className="text-[8px] mt-1 font-bold">
-                  {achievements.veterano.current} / 100
-                </p>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         )}
 
