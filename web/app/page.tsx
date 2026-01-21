@@ -6,6 +6,7 @@ import { useAuth } from "./providers/AuthProvider";
 import { matchesApi, type Match, resultLabel, type CreateMatchRequest } from "@/services/matches";
 import { feedbackApi, type FeedbackKind } from "@/services/feedback";
 import { translateError } from "@/utils/errorTranslations";
+import confetti from "canvas-confetti";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -95,6 +96,10 @@ export default function HomePage() {
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>("ui");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [feedbackSending, setFeedbackSending] = useState(false);
+  const [unlockedAchievement, setUnlockedAchievement] = useState<{ key: string; title: string; icon: string; barColor: string; rarity?: "epic" | "legendary" } | null>(null);
+  const [achievementQueue, setAchievementQueue] = useState<Array<{ key: string; title: string; icon: string; barColor: string; rarity?: "epic" | "legendary" }>>([]);
+  const previousAchievementsRef = useRef<Record<string, { unlocked?: boolean }>>({});
+  const previousItemsCountRef = useRef<number>(0);
   
   // Handler para logout que funciona en Safari
   const handleLogout = async (e: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>) => {
@@ -581,6 +586,139 @@ export default function HomePage() {
       veterano: { current: totalMatches, target: 100, unlocked: totalMatches >= 100, unlockedAt: unlockedAt.veterano },
     };
   }, [items]);
+
+  // Definiciones de logros (reutilizable) con colores y rarities
+  const achievementDefs: Array<{ key: string; title: string; icon: string; barColor: string; rarity?: "epic" | "legendary" }> = [
+    { key: "goleador", title: "Goleador", icon: "⚽", barColor: "#eab308" },
+    { key: "rompeRedes", title: "Rompe-redes", icon: "🥅", barColor: "#eab308" },
+    { key: "leyendaGoles", title: "Leyenda", icon: "👑", barColor: "#eab308", rarity: "legendary" },
+    { key: "hatTrick", title: "Hat-trick", icon: "🎩", barColor: "#eab308" },
+    { key: "poker", title: "Póker", icon: "🃏", barColor: "#eab308", rarity: "epic" },
+    { key: "messi91", title: "Messi 2012", icon: "🐐", barColor: "#a50044", rarity: "legendary" },
+    { key: "asistidor", title: "Asistidor", icon: "👟", barColor: "#3b82f6" },
+    { key: "asistidorSerial", title: "Asistidor serial", icon: "🤝", barColor: "#3b82f6" },
+    { key: "maestroAsist", title: "Maestro del pase", icon: "🧠", barColor: "#3b82f6", rarity: "epic" },
+    { key: "tripleAsistencia", title: "Triple asistencia", icon: "🧙‍♂️", barColor: "#3b82f6", rarity: "epic" },
+    { key: "debut", title: "Debut", icon: "🆕", barColor: "#d1d5db" },
+    { key: "regular", title: "Regular", icon: "📈", barColor: "#d1d5db" },
+    { key: "incansable", title: "Incansable", icon: "🏃‍♂️", barColor: "#d1d5db" },
+    { key: "veterano", title: "Veterano", icon: "🎖️", barColor: "#d1d5db", rarity: "epic" },
+    { key: "primeraVictoria", title: "Primera victoria", icon: "🥇", barColor: "#22c55e" },
+    { key: "ganador", title: "Ganador", icon: "✅", barColor: "#22c55e" },
+    { key: "campeon", title: "Campeón", icon: "🏅", barColor: "#22c55e", rarity: "epic" },
+    { key: "invencible", title: "Invencible", icon: "🛡️", barColor: "#22c55e" },
+    { key: "estrella", title: "Estrella", icon: "⭐", barColor: "#fbbf24" },
+    { key: "mvp", title: "El Elegido", icon: "🌟", barColor: "#fbbf24", rarity: "epic" },
+    { key: "muro", title: "Fortaleza", icon: "⚔️", barColor: "#fbbf24", rarity: "epic" },
+    { key: "polivalente", title: "Polivalente", icon: "🧩", barColor: "#fbbf24", rarity: "epic" },
+    { key: "completo", title: "Partido completo", icon: "☯️", barColor: "#fbbf24", rarity: "epic" },
+    { key: "vallaInvicta", title: "Valla invicta", icon: "🧤", barColor: "#fbbf24", rarity: "epic" },
+    { key: "jugadorTotal", title: "Jugador total", icon: "👽", barColor: "#fbbf24", rarity: "legendary" },
+    { key: "campeonDelMundoPlm", title: "Campeon del Mundo PLM", icon: "🖐", barColor: "#a855f7", rarity: "epic" },
+  ];
+
+  // Detectar desbloqueos y agregar a la cola
+  useEffect(() => {
+    if (!achievements || Object.keys(achievements).length === 0) {
+      previousAchievementsRef.current = {};
+      previousItemsCountRef.current = items.length;
+      return;
+    }
+
+    const currentItemsCount = items.length;
+    const previousItemsCount = previousItemsCountRef.current;
+    const current = achievements as Record<string, { unlocked?: boolean }>;
+
+    // Solo detectar desbloqueos si el número de items aumentó (se guardó un partido nuevo)
+    // O si es la primera carga, solo inicializar sin detectar
+    if (previousItemsCount === 0) {
+      // Primera carga: solo guardar el estado actual
+      previousAchievementsRef.current = { ...current };
+      previousItemsCountRef.current = currentItemsCount;
+      return;
+    }
+
+    // Si el número de items no cambió, no detectar desbloqueos (solo actualizar referencia)
+    if (currentItemsCount === previousItemsCount) {
+      previousAchievementsRef.current = { ...current };
+      return;
+    }
+
+    // Solo si el número de items aumentó, detectar desbloqueos
+    const previous = previousAchievementsRef.current;
+    const newlyUnlocked: Array<{ key: string; title: string; icon: string; barColor: string; rarity?: "epic" | "legendary" }> = [];
+
+    // Buscar TODOS los logros que se acaban de desbloquear
+    for (const key in current) {
+      const wasUnlocked = previous[key]?.unlocked ?? false;
+      const isUnlocked = current[key]?.unlocked ?? false;
+
+      if (!wasUnlocked && isUnlocked) {
+        const def = achievementDefs.find((d) => d.key === key);
+        if (def) {
+          newlyUnlocked.push({ 
+            key, 
+            title: def.title, 
+            icon: def.icon, 
+            barColor: def.barColor,
+            rarity: def.rarity 
+          });
+        }
+      }
+    }
+
+    // Si hay logros nuevos, agregarlos a la cola
+    if (newlyUnlocked.length > 0) {
+      setAchievementQueue((prev) => [...prev, ...newlyUnlocked]);
+    }
+
+    // Actualizar referencias
+    previousAchievementsRef.current = { ...current };
+    previousItemsCountRef.current = currentItemsCount;
+  }, [achievements, items.length]);
+
+  // Procesar la cola de logros desbloqueados
+  useEffect(() => {
+    if (achievementQueue.length > 0 && !unlockedAchievement) {
+      const next = achievementQueue[0];
+      setUnlockedAchievement(next);
+      setAchievementQueue((prev) => prev.slice(1));
+
+      // Confetti explosion
+      const duration = 3000;
+      const animationEnd = Date.now() + duration;
+      const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
+
+      function randomInRange(min: number, max: number) {
+        return Math.random() * (max - min) + min;
+      }
+
+      const interval: NodeJS.Timeout = setInterval(function () {
+        const timeLeft = animationEnd - Date.now();
+
+        if (timeLeft <= 0) {
+          return clearInterval(interval);
+        }
+
+        const particleCount = 50 * (timeLeft / duration);
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+        });
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+        });
+      }, 250);
+
+      // Auto-cerrar después de 3 segundos y procesar el siguiente
+      setTimeout(() => {
+        setUnlockedAchievement(null);
+      }, 3000);
+    }
+  }, [achievementQueue, unlockedAchievement]);
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
@@ -1977,7 +2115,7 @@ export default function HomePage() {
                   icon: "🐐",
                   title: "Messi 2012",
                   description: (a) => `91 goles en el año ${a?.year ?? new Date().getFullYear()}.`,
-                  barColor: "#eab308",
+                  barColor: "#a50044",
                   rarity: "legendary",
                   valueText: (a) =>
                     `Temporada ${a?.year ?? new Date().getFullYear()}: ${a?.current ?? 0} / ${a?.target ?? 91}`,
@@ -2264,10 +2402,13 @@ export default function HomePage() {
                               (target > 0 ? `${displayCurrent} / ${target}` : isUnlocked ? "Desbloqueado" : "Bloqueado");
 
                             const baseColor = def.barColor ?? categoryBarColor[def.category];
-                            const barColor =
-                              def.key === "messi91"
-                                ? mixHex("#f97316", "#ef4444", pct / 100)
-                                : baseColor;
+                            const isMessi = def.key === "messi91";
+                            const isCampeonMundo = def.key === "campeonDelMundoPlm";
+                            // Para Messi: gradiente azul-rojo del Barcelona
+                            // Para Campeon del Mundo PLM: mantener color violeta
+                            const barColor = isMessi
+                              ? mixHex("#004D98", "#a50044", pct / 100)
+                              : baseColor;
                             const tooltip =
                               isComplete && a.unlockedAt
                                 ? `Desbloqueado el ${fmtDate(a.unlockedAt)}`
@@ -2275,17 +2416,54 @@ export default function HomePage() {
                                   ? "Desbloqueado"
                                   : undefined;
 
+                            // Estilo especial para Messi (Barcelona: azul y rojo)
+                            // Estilo especial para Campeon del Mundo PLM (violeta)
+                            const baseBg = "rgba(10, 25, 10, 0.9)";
+                            const messiBackground = isMessi && isUnlocked
+                              ? `linear-gradient(135deg, rgba(0, 77, 152, 0.25) 0%, rgba(165, 0, 68, 0.25) 50%, rgba(0, 77, 152, 0.25) 100%), radial-gradient(circle at 50% 35%, rgba(165, 0, 68, 0.2), ${baseBg} 70%)`
+                              : null;
+                            
+                            const campeonMundoBackground = isCampeonMundo && isUnlocked
+                              ? `radial-gradient(circle at 50% 35%, ${hexToRgba("#a855f7", 0.3)}, ${baseBg} 70%)`
+                              : null;
+                            
+                            const messiBorder = isMessi && isUnlocked ? "#004D98" : barColor;
+                            const messiShadow = isMessi && isUnlocked
+                              ? `0 0 30px ${hexToRgba("#004D98", 0.4)}, 0 0 60px ${hexToRgba("#a50044", 0.3)}`
+                              : undefined;
+                            
+                            const campeonMundoBorder = isCampeonMundo && isUnlocked ? "#a855f7" : barColor;
+                            const campeonMundoShadow = isCampeonMundo && isUnlocked
+                              ? `0 0 30px ${hexToRgba("#a855f7", 0.5)}, 0 0 60px ${hexToRgba("#a855f7", 0.4)}`
+                              : undefined;
+                            
+                            const cardStyle = isMessi && isUnlocked && messiBackground
+                              ? {
+                                  ...cardStyleFor({ isUnlocked, rarity: def.rarity, accentHex: barColor }),
+                                  background: messiBackground,
+                                  border: `2px solid ${messiBorder}`,
+                                  boxShadow: messiShadow,
+                                }
+                              : isCampeonMundo && isUnlocked && campeonMundoBackground
+                                ? {
+                                    ...cardStyleFor({ isUnlocked, rarity: def.rarity, accentHex: barColor }),
+                                    background: campeonMundoBackground,
+                                    border: `2px solid ${campeonMundoBorder}`,
+                                    boxShadow: campeonMundoShadow,
+                                  }
+                                : cardStyleFor({ isUnlocked, rarity: def.rarity, accentHex: barColor });
+
                             return (
                               <div
                                 key={String(def.key)}
                                 className={`p-4 rounded-3xl text-center relative transition-transform duration-200 ${
                                   isUnlocked ? "hover:scale-[1.02]" : "opacity-80"
                                 }`}
-                                style={cardStyleFor({ isUnlocked, rarity: def.rarity, accentHex: barColor })}
+                                style={cardStyle}
                                 title={tooltip}
                               >
                                 {isComplete && (
-                                  <div className="absolute right-3 top-3 text-[10px] font-black" style={{ color: barColor }}>
+                                  <div className="absolute right-3 top-3 text-[10px] font-black" style={{ color: isMessi ? "#a50044" : isCampeonMundo ? "#a855f7" : barColor }}>
                                     ✓
                                   </div>
                                 )}
@@ -2298,13 +2476,30 @@ export default function HomePage() {
                                     fontSize: def.rarity ? 30 : 28,
                                     background: "rgba(255,255,255,0.05)",
                                     border: "1px solid rgba(255,255,255,0.10)",
-                                    filter: isUnlocked ? "none" : "grayscale(1)",
+                                    filter: isUnlocked 
+                                      ? (isMessi 
+                                          ? "drop-shadow(0 0 8px rgba(165, 0, 68, 0.6)) drop-shadow(0 0 12px rgba(0, 77, 152, 0.4))" 
+                                          : isCampeonMundo
+                                            ? "drop-shadow(0 0 8px rgba(168, 85, 247, 0.6)) drop-shadow(0 0 12px rgba(168, 85, 247, 0.4))"
+                                            : "none") 
+                                      : "grayscale(1)",
                                     opacity: isUnlocked ? 1 : 0.55,
                                   }}
                                 >
                                   {def.icon}
                                 </div>
-                                <h4 className="font-black text-[10px] uppercase">{def.title}</h4>
+                                <h4 
+                                  className="font-black text-[10px] uppercase"
+                                  style={isMessi && isUnlocked ? {
+                                    color: "#a50044",
+                                    textShadow: `0 0 8px ${hexToRgba("#a50044", 0.7)}, 0 0 16px ${hexToRgba("#004D98", 0.5)}`,
+                                  } : isCampeonMundo && isUnlocked ? {
+                                    color: "#a855f7",
+                                    textShadow: `0 0 8px ${hexToRgba("#a855f7", 0.7)}, 0 0 16px ${hexToRgba("#a855f7", 0.5)}`,
+                                  } : {}}
+                                >
+                                  {def.title}
+                                </h4>
                                 <p className="text-[8px] text-gray-500 mb-3">{desc}</p>
 
                                 {target > 0 && (
@@ -2314,7 +2509,11 @@ export default function HomePage() {
                                         className="h-full"
                                         style={{
                                           width: `${pct}%`,
-                                          background: barColor,
+                                          background: isMessi && isComplete
+                                            ? `linear-gradient(90deg, #004D98 0%, #a50044 50%, #004D98 100%)`
+                                            : isCampeonMundo && isComplete
+                                              ? "#a855f7"
+                                              : barColor,
                                           boxShadow: isComplete ? `0 0 10px ${hexToRgba(barColor, 0.65)}` : "none",
                                           filter: isComplete ? "saturate(1.15) brightness(1.08)" : "none",
                                         }}
@@ -2428,21 +2627,60 @@ export default function HomePage() {
                               (target > 0 ? `${displayCurrent} / ${target}` : "Desbloqueado");
 
                             const baseColor = def.barColor ?? categoryBarColor[def.category];
-                            const barColor =
-                              def.key === "messi91"
-                                ? mixHex("#f97316", "#ef4444", pct / 100)
-                                : baseColor;
+                            const isMessiHidden = def.key === "messi91";
+                            const isCampeonMundoHidden = def.key === "campeonDelMundoPlm";
+                            // Para Messi: gradiente azul-rojo del Barcelona
+                            const barColor = isMessiHidden
+                              ? mixHex("#004D98", "#a50044", pct / 100)
+                              : baseColor;
                             const tooltip = a.unlockedAt ? `Desbloqueado el ${fmtDate(a.unlockedAt)}` : "Desbloqueado";
+
+                            // Estilo especial para Messi en logros ocultos
+                            // Estilo especial para Campeon del Mundo PLM en logros ocultos
+                            const baseBgHidden = "rgba(10, 25, 10, 0.9)";
+                            const messiBackgroundHidden = isMessiHidden
+                              ? `linear-gradient(135deg, rgba(0, 77, 152, 0.25) 0%, rgba(165, 0, 68, 0.25) 50%, rgba(0, 77, 152, 0.25) 100%), radial-gradient(circle at 50% 35%, rgba(165, 0, 68, 0.2), ${baseBgHidden} 70%)`
+                              : null;
+                            
+                            const campeonMundoBackgroundHidden = isCampeonMundoHidden
+                              ? `radial-gradient(circle at 50% 35%, ${hexToRgba("#a855f7", 0.3)}, ${baseBgHidden} 70%)`
+                              : null;
+                            
+                            const messiBorderHidden = isMessiHidden ? "#004D98" : barColor;
+                            const messiShadowHidden = isMessiHidden
+                              ? `0 0 30px ${hexToRgba("#004D98", 0.4)}, 0 0 60px ${hexToRgba("#a50044", 0.3)}`
+                              : undefined;
+                            
+                            const campeonMundoBorderHidden = isCampeonMundoHidden ? "#a855f7" : barColor;
+                            const campeonMundoShadowHidden = isCampeonMundoHidden
+                              ? `0 0 30px ${hexToRgba("#a855f7", 0.5)}, 0 0 60px ${hexToRgba("#a855f7", 0.4)}`
+                              : undefined;
+                            
+                            const cardStyleHidden = isMessiHidden && messiBackgroundHidden
+                              ? {
+                                  ...cardStyleFor({ isUnlocked: true, rarity: def.rarity, accentHex: barColor }),
+                                  background: messiBackgroundHidden,
+                                  border: `2px solid ${messiBorderHidden}`,
+                                  boxShadow: messiShadowHidden,
+                                }
+                              : isCampeonMundoHidden && campeonMundoBackgroundHidden
+                                ? {
+                                    ...cardStyleFor({ isUnlocked: true, rarity: def.rarity, accentHex: barColor }),
+                                    background: campeonMundoBackgroundHidden,
+                                    border: `2px solid ${campeonMundoBorderHidden}`,
+                                    boxShadow: campeonMundoShadowHidden,
+                                  }
+                                : cardStyleFor({ isUnlocked: true, rarity: def.rarity, accentHex: barColor });
 
                             return (
                               <div
                                 key={String(def.key)}
                                 className="p-4 rounded-3xl text-center relative transition-transform duration-200 hover:scale-[1.02]"
-                                style={cardStyleFor({ isUnlocked: true, rarity: def.rarity, accentHex: barColor })}
+                                style={cardStyleHidden}
                                 title={tooltip}
                               >
                                 {isComplete && (
-                                  <div className="absolute right-3 top-3 text-[10px] font-black" style={{ color: barColor }}>
+                                  <div className="absolute right-3 top-3 text-[10px] font-black" style={{ color: isMessiHidden ? "#a50044" : isCampeonMundoHidden ? "#a855f7" : barColor }}>
                                     ✓
                                   </div>
                                 )}
@@ -2455,11 +2693,27 @@ export default function HomePage() {
                                     fontSize: def.rarity ? 30 : 28,
                                     background: "rgba(255,255,255,0.05)",
                                     border: "1px solid rgba(255,255,255,0.10)",
+                                    filter: isMessiHidden 
+                                      ? "drop-shadow(0 0 8px rgba(165, 0, 68, 0.6)) drop-shadow(0 0 12px rgba(0, 77, 152, 0.4))"
+                                      : isCampeonMundoHidden
+                                        ? "drop-shadow(0 0 8px rgba(168, 85, 247, 0.6)) drop-shadow(0 0 12px rgba(168, 85, 247, 0.4))"
+                                        : "none",
                                   }}
                                 >
                                   {def.icon}
                                 </div>
-                                <h4 className="font-black text-[10px] uppercase">{def.title}</h4>
+                                <h4 
+                                  className="font-black text-[10px] uppercase"
+                                  style={isMessiHidden ? {
+                                    color: "#a50044",
+                                    textShadow: `0 0 8px ${hexToRgba("#a50044", 0.7)}, 0 0 16px ${hexToRgba("#004D98", 0.5)}`,
+                                  } : isCampeonMundoHidden ? {
+                                    color: "#a855f7",
+                                    textShadow: `0 0 8px ${hexToRgba("#a855f7", 0.7)}, 0 0 16px ${hexToRgba("#a855f7", 0.5)}`,
+                                  } : {}}
+                                >
+                                  {def.title}
+                                </h4>
                                 <p className="text-[8px] text-gray-500 mb-3">{desc}</p>
 
                                 {target > 0 && (
@@ -2469,7 +2723,11 @@ export default function HomePage() {
                                         className="h-full"
                                         style={{
                                           width: `${pct}%`,
-                                          background: barColor,
+                                          background: isMessiHidden && isComplete
+                                            ? `linear-gradient(90deg, #004D98 0%, #a50044 50%, #004D98 100%)`
+                                            : isCampeonMundoHidden && isComplete
+                                              ? "#a855f7"
+                                              : barColor,
                                           boxShadow: isComplete ? `0 0 10px ${hexToRgba(barColor, 0.65)}` : "none",
                                           filter: isComplete ? "saturate(1.15) brightness(1.08)" : "none",
                                         }}
@@ -3168,6 +3426,97 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* Overlay de logro desbloqueado */}
+      {unlockedAchievement && (() => {
+        const hexToRgba = (hex: string, alpha: number) => {
+          if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return `rgba(255,255,255,${alpha})`;
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+
+        const accentColor = unlockedAchievement.barColor;
+        const isEpic = unlockedAchievement.rarity === "epic" || unlockedAchievement.rarity === "legendary";
+        const isMessi = unlockedAchievement.key === "messi91";
+        const isCampeonMundo = unlockedAchievement.key === "campeonDelMundoPlm";
+        const baseBg = "rgba(10, 25, 10, 0.98)";
+        
+        // Gradiente especial para Messi (Barcelona: azul y rojo)
+        // Gradiente especial para Campeon del Mundo PLM (violeta)
+        const background: string = isMessi
+          ? `linear-gradient(135deg, rgba(0, 77, 152, 0.4) 0%, rgba(165, 0, 68, 0.4) 50%, rgba(0, 77, 152, 0.4) 100%), radial-gradient(circle at 50% 35%, rgba(165, 0, 68, 0.3), ${baseBg} 70%)`
+          : isCampeonMundo
+            ? `radial-gradient(circle at 50% 35%, ${hexToRgba("#a855f7", 0.3)}, ${baseBg} 70%)`
+            : isEpic
+              ? `radial-gradient(circle at 50% 35%, ${hexToRgba(accentColor, 0.25)}, ${baseBg} 70%)`
+              : baseBg;
+        
+        // Color especial para Messi: gradiente azul-rojo
+        // Color especial para Campeon del Mundo PLM: violeta
+        const displayColor = isMessi ? "#a50044" : isCampeonMundo ? "#a855f7" : accentColor;
+        const borderColor = isMessi ? "#004D98" : isCampeonMundo ? "#a855f7" : accentColor;
+
+        return (
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center"
+            style={{
+              background: "rgba(0, 0, 0, 0.85)",
+              backdropFilter: "blur(8px)",
+            }}
+            onClick={() => setUnlockedAchievement(null)}
+          >
+            <div
+              className="relative p-8 rounded-3xl text-center animate-in fade-in zoom-in duration-300"
+              style={{
+                background,
+                border: isMessi ? `3px solid ${borderColor}` : isCampeonMundo ? `2px solid ${borderColor}` : `2px solid ${accentColor}`,
+                boxShadow: isMessi
+                  ? `0 0 50px ${hexToRgba("#004D98", 0.6)}, 0 0 100px ${hexToRgba("#a50044", 0.5)}, 0 0 150px ${hexToRgba("#004D98", 0.3)}`
+                  : isCampeonMundo
+                    ? `0 0 40px ${hexToRgba("#a855f7", 0.6)}, 0 0 80px ${hexToRgba("#a855f7", 0.5)}`
+                    : `0 0 40px ${hexToRgba(accentColor, 0.5)}, 0 0 80px ${hexToRgba(accentColor, 0.3)}`,
+                maxWidth: "90%",
+                width: isMessi ? "450px" : "400px",
+              }}
+            >
+              <div
+                className="text-6xl mb-4 animate-bounce"
+                style={{
+                  animation: "bounce 0.6s ease-in-out infinite",
+                  filter: isMessi 
+                    ? "drop-shadow(0 0 10px rgba(165, 0, 68, 0.8)) drop-shadow(0 0 20px rgba(0, 77, 152, 0.6))"
+                    : isCampeonMundo
+                      ? "drop-shadow(0 0 10px rgba(168, 85, 247, 0.8)) drop-shadow(0 0 20px rgba(168, 85, 247, 0.6))"
+                      : "none",
+                }}
+              >
+                {unlockedAchievement.icon}
+              </div>
+              <div className="text-[10px] uppercase tracking-widest text-gray-400 font-black mb-2">
+                🏆 LOGRO DESBLOQUEADO
+              </div>
+              <h2
+                className="text-2xl font-black italic uppercase mb-4"
+                style={{
+                  color: displayColor,
+                  textShadow: isMessi
+                    ? `0 0 20px ${hexToRgba("#a50044", 0.8)}, 0 0 40px ${hexToRgba("#004D98", 0.6)}`
+                    : isCampeonMundo
+                      ? `0 0 20px ${hexToRgba("#a855f7", 0.8)}, 0 0 40px ${hexToRgba("#a855f7", 0.6)}`
+                      : `0 0 20px ${hexToRgba(accentColor, 0.6)}`,
+                }}
+              >
+                {unlockedAchievement.title}
+              </h2>
+              <p className="text-sm text-gray-400 mt-4">
+                Toca para cerrar
+              </p>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
