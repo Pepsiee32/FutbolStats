@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./providers/AuthProvider";
-import { matchesApi, type Match, resultLabel, type CreateMatchRequest } from "@/services/matches";
+import { matchesApi, type Match, type MatchType, resultLabel, type CreateMatchRequest } from "@/services/matches";
 import { feedbackApi, type FeedbackKind } from "@/services/feedback";
 import { translateError } from "@/utils/errorTranslations";
 import confetti from "canvas-confetti";
@@ -21,7 +21,7 @@ import {
   Legend,
   Filler,
 } from "chart.js";
-import { Radar, Doughnut, Line, Bar } from "react-chartjs-2";
+import { Radar, Doughnut, Line } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
@@ -80,6 +80,21 @@ function cardBorderByResult(result: number | null) {
   return "rgba(255,255,255,0.15)";
 }
 
+function ratingColor(score: number | null | undefined): string {
+  if (!score || Number.isNaN(score)) return "#6B7280";
+  if (score <= 3) return "#6B7280"; // pobre
+  if (score <= 6) return "#4F6F5A"; // promedio
+  if (score <= 8) return "#2FA36B"; // bueno
+  return "#22C55E"; // excelente (9-10)
+}
+
+function currentFormRatingColor(score: number): string {
+  if (score < 7) return "#9CA3AF";      // 6–7 gris suave
+  if (score < 8) return "#4F6F5A";      // 7–8 verde base
+  if (score < 9) return "#2FA36B";      // 8–9 verde fuerte
+  return "#22C55E";                     // 9+ verde brillante
+}
+
 export default function HomePage() {
   const router = useRouter();
   const { me, loading, logout } = useAuth();
@@ -129,10 +144,12 @@ export default function HomePage() {
   
   // Stats filters
   const [statsFilter, setStatsFilter] = useState<number | "all">("all");
-  const [statsSubTab, setStatsSubTab] = useState<"perfil" | "ataque" | "canchas">("perfil");
+  const [statsTypeFilter, setStatsTypeFilter] = useState<"all" | MatchType>("all");
+  const [statsSubTab, setStatsSubTab] = useState<"perfil" | "ataque" | "resultados" | "canchas">("perfil");
   
   // Historial filter
   const [historialFilter, setHistorialFilter] = useState<number | "all">("all");
+  const [historialTypeFilter, setHistorialTypeFilter] = useState<"all" | MatchType>("all");
   const [historialSearch, setHistorialSearch] = useState<string>("");
   const [historialDateMode, setHistorialDateMode] = useState<HistorialDateMode>("all");
   
@@ -144,23 +161,10 @@ export default function HomePage() {
     if (historialFilter !== "all") {
       filtered = filtered.filter((m) => m.format === historialFilter);
     }
-    
-    // Filtrar por búsqueda de rival (búsqueda inteligente de palabras completas)
-    if (historialSearch.trim()) {
-      const searchTerm = historialSearch.trim().toLowerCase();
-      const searchWords = searchTerm.split(/\s+/).filter(w => w.length > 0);
-      
-      filtered = filtered.filter((m) => {
-        if (!m.opponent) return false;
-        const opponentLower = m.opponent.toLowerCase();
-        
-        // Si hay múltiples palabras, todas deben coincidir
-        return searchWords.every(word => {
-          // Buscar palabra completa (separada por espacios o al inicio/fin)
-          const wordBoundaryRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
-          return wordBoundaryRegex.test(opponentLower);
-        });
-      });
+
+    // Filtrar por tipo de partido
+    if (historialTypeFilter !== "all") {
+      filtered = filtered.filter((m) => m.matchType === historialTypeFilter);
     }
 
     // Filtrar por fecha (UTC para evitar problemas de zona horaria)
@@ -191,11 +195,29 @@ export default function HomePage() {
       filtered = filtered.filter((m) => matchKeyOf(m).slice(0, 4) === thisYearKey);
     }
 
+    // Filtrar por búsqueda de rival (búsqueda inteligente de palabras completas)
+    if (historialSearch.trim()) {
+      const searchTerm = historialSearch.trim().toLowerCase();
+      const searchWords = searchTerm.split(/\s+/).filter((w) => w.length > 0);
+      
+      filtered = filtered.filter((m) => {
+        if (!m.opponent) return false;
+        const opponentLower = m.opponent.toLowerCase();
+        
+        // Si hay múltiples palabras, todas deben coincidir
+        return searchWords.every((word) => {
+          // Buscar palabra completa (separada por espacios o al inicio/fin)
+          const wordBoundaryRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i");
+          return wordBoundaryRegex.test(opponentLower);
+        });
+      });
+    }
+
     // Ordenar más recientes primero
     filtered = [...filtered].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     return filtered;
-  }, [items, historialFilter, historialSearch, historialDateMode]);
+  }, [items, historialFilter, historialTypeFilter, historialSearch, historialDateMode]);
 
   const historialTimelineGroups = useMemo(() => {
     const byDay = new Map<string, Match[]>();
@@ -243,12 +265,14 @@ export default function HomePage() {
   const [date, setDate] = useState(getTodayDate());
   const [opponent, setOpponent] = useState("");
   const [format, setFormat] = useState<number>(5);
+  const [matchType, setMatchType] = useState<MatchType>("friendly");
   // Marcador
   const [goalsScored, setGoalsScored] = useState<number>(0);
   const [goalsConceded, setGoalsConceded] = useState<number>(0);
   // Rendimiento personal
   const [goals, setGoals] = useState<number>(0);
   const [assists, setAssists] = useState<number>(0);
+  const [selfRating, setSelfRating] = useState<number>(7); // 1-10
   const [isMvp, setIsMvp] = useState(false);
   const [notes, setNotes] = useState("");
 
@@ -257,10 +281,12 @@ export default function HomePage() {
   const [editDate, setEditDate] = useState("");
   const [editOpponent, setEditOpponent] = useState("");
   const [editFormat, setEditFormat] = useState<number | "">("");
+  const [editMatchType, setEditMatchType] = useState<MatchType | "">("");
   const [editGoalsScored, setEditGoalsScored] = useState<number>(0);
   const [editGoalsConceded, setEditGoalsConceded] = useState<number>(0);
   const [editGoals, setEditGoals] = useState<number>(0);
   const [editAssists, setEditAssists] = useState<number>(0);
+  const [editSelfRating, setEditSelfRating] = useState<number | "">("");
   const [editIsMvp, setEditIsMvp] = useState(false);
   const [editNotes, setEditNotes] = useState("");
   const [editLoading, setEditLoading] = useState(false);
@@ -332,9 +358,18 @@ export default function HomePage() {
 
   // Filtered items for stats
   const filteredItems = useMemo(() => {
-    if (statsFilter === "all") return items;
-    return items.filter((m) => m.format === statsFilter);
-  }, [items, statsFilter]);
+    let filtered = items;
+
+    if (statsFilter !== "all") {
+      filtered = filtered.filter((m) => m.format === statsFilter);
+    }
+
+    if (statsTypeFilter !== "all") {
+      filtered = filtered.filter((m) => m.matchType === statsTypeFilter);
+    }
+
+    return filtered;
+  }, [items, statsFilter, statsTypeFilter]);
 
   // Stats calculations
   const statsData = useMemo(() => {
@@ -362,6 +397,103 @@ export default function HomePage() {
       avgAssists,
       winRate,
       mvpRate,
+    };
+  }, [filteredItems]);
+
+  const goalInvolvementPerMatch = useMemo(() => {
+    const matches = filteredItems.length;
+    if (!matches) return 0;
+    const totalGoals = filteredItems.reduce((acc, m) => acc + (m.goals ?? 0), 0);
+    const totalAssists = filteredItems.reduce((acc, m) => acc + (m.assists ?? 0), 0);
+    return (totalGoals + totalAssists) / matches;
+  }, [filteredItems]);
+
+  const resultStats = useMemo(() => {
+    // Racha de victorias (consecutivas desde el partido más reciente)
+    let winsStreak = 0;
+    for (const m of filteredItems) {
+      if (m.result === 1) winsStreak++;
+      else break;
+    }
+
+    // Racha con participación en gol (goles + asistencias > 0)
+    let gaStreak = 0;
+    for (const m of filteredItems) {
+      const g = m.goals ?? 0;
+      const a = m.assists ?? 0;
+      if (g + a > 0) gaStreak++;
+      else break;
+    }
+
+    // Impacto ofensivo: porcentaje de goles del equipo donde participó (goles + asistencias)
+    let playerGoals = 0;
+    let playerAssists = 0;
+    let teamGoals = 0;
+
+    for (const m of filteredItems) {
+      playerGoals += m.goals ?? 0;
+      playerAssists += m.assists ?? 0;
+      const scored =
+        (m as any).goalsScored ??
+        (m as any).goals_scored ??
+        null;
+      if (typeof scored === "number" && !Number.isNaN(scored)) {
+        teamGoals += scored;
+      }
+    }
+
+    const offensiveImpact =
+      teamGoals > 0
+        ? Math.max(
+            0,
+            Math.min(
+              100,
+              ((playerGoals + playerAssists) / teamGoals) * 100,
+            ),
+          )
+        : 0;
+
+    return {
+      winsStreak,
+      gaStreak,
+      offensiveImpact,
+    };
+  }, [filteredItems]);
+
+  const currentForm = useMemo(() => {
+    const recent = filteredItems.slice(0, 5);
+    if (recent.length === 0) {
+      return {
+        matches: 0,
+        avgRating: 0,
+        totalGoals: 0,
+        totalAssists: 0,
+      };
+    }
+
+    let goals = 0;
+    let assists = 0;
+    const ratings: number[] = [];
+
+    for (const m of recent) {
+      goals += m.goals ?? 0;
+      assists += m.assists ?? 0;
+      const r = (m as any).selfRating ?? (m as any).self_rating ?? null;
+      if (typeof r === "number" && !Number.isNaN(r)) {
+        ratings.push(r);
+      }
+    }
+
+    const avgRating =
+      ratings.length > 0
+        ? ratings.reduce((acc, v) => acc + v, 0) / ratings.length
+        : 0;
+
+    return {
+      matches: recent.length,
+      avgRating,
+      totalGoals: goals,
+      totalAssists: assists,
     };
   }, [filteredItems]);
 
@@ -775,15 +907,19 @@ export default function HomePage() {
     try {
       showToast("Guardando partido...", "info");
 
+      const safeSelfRating = Math.min(10, Math.max(1, Math.floor(selfRating || 1)));
+
       await matchesApi.create({
         date: dateToISOString(date),
         opponent: opponent.trim(),
         format,
+        matchType,
         goalsScored: safeGoalsScored,
         goalsConceded: safeGoalsConceded,
         goals: safeGoals,
         assists: safeAssists,
         result: derivedResult,
+        selfRating: safeSelfRating,
         is_mvp: isMvp,
         notes: notes.trim() ? notes.trim() : null,
       });
@@ -792,10 +928,12 @@ export default function HomePage() {
       setDate(getTodayDate());
       setOpponent("");
       setFormat(5);
+      setMatchType("friendly");
       setGoalsScored(0);
       setGoalsConceded(0);
       setGoals(0);
       setAssists(0);
+      setSelfRating(7);
       setIsMvp(false);
       setNotes("");
 
@@ -817,11 +955,19 @@ export default function HomePage() {
 
       setEditOpponent(m.opponent ?? "");
       setEditFormat(m.format ?? "");
+      setEditMatchType(m.matchType ?? "friendly");
       setEditGoalsScored(clampNonNegativeInt((m as any).goalsScored ?? (m as any).goals_scored ?? 0));
       setEditGoalsConceded(clampNonNegativeInt((m as any).goalsConceded ?? (m as any).goals_conceded ?? 0));
       setEditGoals(clampNonNegativeInt(m.goals ?? 0));
       setEditAssists(clampNonNegativeInt(m.assists ?? 0));
+
+      const initialSelfRating =
+        (m as any).selfRating ??
+        (m as any).self_rating ??
+        (m.isMvp ? 10 : 7);
+      setEditSelfRating(initialSelfRating);
       setEditIsMvp(!!m.isMvp);
+
       setEditNotes(m.notes ?? "");
       setEditId(id);
       setEditLoading(false);
@@ -837,10 +983,12 @@ export default function HomePage() {
     setEditDate("");
     setEditOpponent("");
     setEditFormat("");
+    setEditMatchType("");
     setEditGoalsScored(0);
     setEditGoalsConceded(0);
     setEditGoals(0);
     setEditAssists(0);
+    setEditSelfRating("");
     setEditIsMvp(false);
     setEditNotes("");
   }
@@ -878,6 +1026,11 @@ export default function HomePage() {
       return;
     }
 
+    if (!editMatchType) {
+      showToast("El tipo de partido es requerido", "error");
+      return;
+    }
+
     // Validaciones numéricas básicas (por seguridad)
     const safeEditGoals = clampNonNegativeInt(editGoals);
     const safeEditAssists = clampNonNegativeInt(editAssists);
@@ -909,15 +1062,25 @@ export default function HomePage() {
     try {
       setMsg("Guardando cambios...");
 
+      const safeEditSelfRating = Math.min(
+        10,
+        Math.max(
+          1,
+          typeof editSelfRating === "number" ? Math.floor(editSelfRating) : 7,
+        ),
+      );
+
       const payload: CreateMatchRequest = {
         date: dateToISOString(editDate),
         opponent: editOpponent.trim(),
         format: Number(editFormat),
+        matchType: editMatchType as MatchType,
         goalsScored: safeEditGoalsScored,
         goalsConceded: safeEditGoalsConceded,
         goals: safeEditGoals,
         assists: safeEditAssists,
         result: derivedEditResult,
+        selfRating: safeEditSelfRating,
         is_mvp: editIsMvp,
         notes: editNotes.trim() ? editNotes.trim() : null,
       };
@@ -951,24 +1114,20 @@ export default function HomePage() {
     // mvpRate ya está calculado como porcentaje, no necesita multiplicarse
     const mvpNormalized = statsData.mvpRate;
 
-    // FORMA: Sistema de puntos (Victoria=3, Empate=1, Derrota=0)
-    // Normalizar como (puntos obtenidos / 15) * 100 donde 15 es el máximo en 5 partidos
-    const wins = filteredItems.filter((m) => m.result === 1).length;
-    const draws = filteredItems.filter((m) => m.result === 0).length;
-    const losses = filteredItems.filter((m) => m.result === -1).length;
-    const totalPoints = (wins * 3) + (draws * 1) + (losses * 0);
-    // Usar los últimos 5 partidos para calcular la forma, o todos si son menos de 5
-    const recentMatches = filteredItems.slice(0, Math.min(5, filteredItems.length));
-    const recentWins = recentMatches.filter((m) => m.result === 1).length;
-    const recentDraws = recentMatches.filter((m) => m.result === 0).length;
-    const recentPoints = (recentWins * 3) + (recentDraws * 1);
-    const maxPossiblePoints = recentMatches.length * 3; // Máximo posible en los últimos N partidos
-    const formaNormalized = maxPossiblePoints > 0 
-      ? (recentPoints / maxPossiblePoints) * 100 
-      : 0;
+    // Rating promedio: media de selfRating (1-10), normalizada a 0-100
+    const ratingValues = filteredItems
+      .map((m) => (m as any).selfRating ?? (m as any).self_rating ?? null)
+      .filter((v): v is number => typeof v === "number" && !Number.isNaN(v));
+
+    const ratingAvg =
+      ratingValues.length > 0
+        ? ratingValues.reduce((acc, v) => acc + v, 0) / ratingValues.length
+        : 0;
+
+    const ratingAvgNormalized = Math.min(100, Math.max(0, (ratingAvg / 10) * 100));
 
     return {
-      labels: ['GOLES', 'ASIST', 'WINS', 'MVP', 'FORMA'],
+      labels: ['GOLES', 'ASIST', 'WINS', 'MVP', 'RATING'],
       datasets: [
         {
           data: [
@@ -976,7 +1135,7 @@ export default function HomePage() {
             assistsNormalized,
             winsNormalized,
             mvpNormalized,
-            formaNormalized,
+            ratingAvgNormalized,
           ],
           backgroundColor: 'rgba(34,197,94,0.2)',
           borderColor: '#22c55e',
@@ -1028,26 +1187,6 @@ export default function HomePage() {
           fill: true,
           backgroundColor: 'rgba(59,130,246,0.12)',
           tension: 0.4,
-        },
-      ],
-    };
-  }, [filteredItems]);
-
-  const barChartData = useMemo(() => {
-    // Invertir el orden: más antiguos primero, más reciente al final
-    const reversedItems = [...filteredItems].reverse();
-    return {
-      labels: reversedItems.map((_, i) => `P${i + 1}`),
-      datasets: [
-        {
-          label: 'G',
-          data: reversedItems.map((m) => m.goals ?? 0),
-          backgroundColor: '#22c55e',
-        },
-        {
-          label: 'A',
-          data: reversedItems.map((m) => m.assists ?? 0),
-          backgroundColor: '#fff',
         },
       ],
     };
@@ -1463,25 +1602,19 @@ export default function HomePage() {
                     <option value={8}>Fútbol 8</option>
                     <option value={11}>Fútbol 11</option>
                   </select>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      setIsMvp(!isMvp);
-                      e.currentTarget.blur();
-                    }}
-                    className={`flex items-center justify-center bg-white/5 border rounded-xl p-3 gap-2 transition-colors ${
-                      isMvp ? "border-yellow-400" : "border-white/10"
-                    } outline-none`}
-                    title="Opcional"
-                  >
-                    <i
-                      className={`fas fa-star ${isMvp ? "text-yellow-400" : "text-gray-500"}`}
-                      style={{ fontSize: 18 }}
-                    ></i>
-                    <span className="text-[10px] font-black text-gray-400 uppercase">
-                      ¿Fuiste el MVP?
-                    </span>
-                  </button>
+                  <div>
+
+                    <select
+                      value={matchType}
+                      onChange={(e) => setMatchType(e.target.value as MatchType)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-gray-200 outline-none"
+                      required
+                    >
+                      <option value="friendly">Amistoso</option>
+                      <option value="tournament">Torneo</option>
+                      <option value="cup">Copa</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Marcador (Match Score) */}
@@ -1558,7 +1691,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Rendimiento personal (Goles / Asistencias con +/-) */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-white/5 border border-white/10 rounded-xl p-3">
                     <p className="text-[10px] font-black uppercase text-gray-400 mb-2 text-center">
                       Goles
@@ -1622,9 +1755,78 @@ export default function HomePage() {
                   </div>
                 </div>
 
+                {/* Calificación personal y control de MVP */}
+                <div className="flex flex-col gap-2 mb-4">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-[3]">
+                      <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">
+                        Tu Calificación (1 - 10)
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={1}
+                          max={10}
+                          value={selfRating}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setSelfRating(v);
+                          }}
+                          className="flex-1 appearance-none h-2 rounded-full bg-white/10"
+                          style={{
+                            accentColor: ratingColor(selfRating),
+                          }}
+                        />
+                        <span className="text-base font-black w-7 text-center">
+                          <span
+                            style={{
+                              color: ratingColor(selfRating),
+                              textShadow:
+                                selfRating >= 9
+                                  ? "0 0 8px rgba(34,197,94,0.75)"
+                                  : "none",
+                            }}
+                          >
+                            {selfRating}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMvp((v) => !v)}
+                    className={`w-full flex items-center justify-center gap-2 rounded-full border text-[11px] font-black uppercase tracking-widest transition-colors transition-shadow px-4 py-2 ${
+                      isMvp
+                        ? "bg-yellow-400/90 border-yellow-300 text-black shadow-[0_0_16px_rgba(251,191,36,0.55)]"
+                        : "bg-white/5 border-white/15 text-gray-300 hover:bg-white/10"
+                    }`}
+                    style={{
+                      boxShadow: isMvp ? "0 0 18px rgba(251,191,36,0.55)" : "none",
+                    }}
+                  >
+                    <i
+                      className={`${
+                        isMvp ? "fas" : "far"
+                      } fa-star ${isMvp ? "text-black" : "text-gray-400"}`}
+                      style={{ fontSize: 16 }}
+                    ></i>
+                    <span>
+                      {isMvp ? "MVP del partido" : "Marcar como MVP"}
+                    </span>
+                  </button>
+
+                  {!isMvp && selfRating >= 9 && (
+                    <p className="text-[8px] text-emerald-300 mt-1 font-medium">
+                      Con esta calificación podrías marcarte como MVP.
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <textarea
-                    placeholder='Opcional: ¿Cómo jugaste? ¿Algo destacado?'
+                    placeholder='Opcional: ¿Cómo jugaste? ¿Algo destacado?  Agregá un link del partido'
                     value={notes}
                     maxLength={100}
                     onChange={(e) => {
@@ -1787,7 +1989,7 @@ export default function HomePage() {
         {/* STATS */}
         {tab === "stats" && (
           <div className="space-y-4">
-            {/* Filter buttons */}
+            {/* Filter buttons - formato */}
             <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar">
               <button
                 onClick={() => setStatsFilter("all")}
@@ -1814,6 +2016,50 @@ export default function HomePage() {
               ))}
             </div>
 
+            {/* Filter buttons - tipo de partido */}
+            <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar">
+              <button
+                onClick={() => setStatsTypeFilter("all")}
+                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  statsTypeFilter === "all"
+                    ? "bg-green-500 text-black"
+                      : "bg-white/10 text-white"
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setStatsTypeFilter("friendly")}
+                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  statsTypeFilter === "friendly"
+                    ? "bg-green-500 text-black"
+                      : "bg-white/10 text-white"
+                }`}
+              >
+                Amistoso
+              </button>
+              <button
+                onClick={() => setStatsTypeFilter("tournament")}
+                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  statsTypeFilter === "tournament"
+                    ? "bg-green-500 text-black"
+                      : "bg-white/10 text-white"
+                }`}
+              >
+                Torneo
+              </button>
+              <button
+                onClick={() => setStatsTypeFilter("cup")}
+                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  statsTypeFilter === "cup"
+                    ? "bg-green-500 text-black"
+                      : "bg-white/10 text-white"
+                }`}
+              >
+                Copa
+              </button>
+            </div>
+
             {/* Sub-tabs */}
             <div className="flex justify-around mb-4 border-b border-white/5">
               <button
@@ -1837,6 +2083,16 @@ export default function HomePage() {
                 Ataque
               </button>
               <button
+                onClick={() => setStatsSubTab("resultados")}
+                className={`pb-2 text-[10px] font-black uppercase ${
+                  statsSubTab === "resultados"
+                    ? "border-b-2 border-green-500 text-white"
+                    : "text-gray-500"
+                }`}
+              >
+                Resultados
+              </button>
+              <button
                 onClick={() => setStatsSubTab("canchas")}
                 className={`pb-2 text-[10px] font-black uppercase ${
                   statsSubTab === "canchas"
@@ -1851,6 +2107,57 @@ export default function HomePage() {
             {/* Perfil sub-tab */}
             {statsSubTab === "perfil" && (
               <div className="space-y-4">
+                {/* Forma actual */}
+                {currentForm.matches > 0 && (
+                  <div
+                    className="p-4 rounded-3xl flex items-center justify-between gap-4"
+                    style={{
+                      background: "#0f2f24",
+                      border: "1px solid rgba(34,197,94,0.35)",
+                    }}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-300">
+                        Forma actual
+                      </span>
+                      <span className="text-[9px] text-gray-400">
+                        últimos 5 partidos
+                      </span>
+                    </div>
+                    <div className="flex-1 flex items-center justify-end gap-4">
+                      <div className="flex items-center gap-1">
+                        <span
+                          className="text-2xl font-black"
+                          style={{
+                            color: currentFormRatingColor(currentForm.avgRating),
+                            textShadow:
+                              currentForm.avgRating >= 9
+                                ? "0 0 14px rgba(34,197,94,0.9)"
+                                : currentForm.avgRating >= 8
+                                  ? "0 0 8px rgba(34,197,94,0.6)"
+                                  : "none",
+                          }}
+                        >
+                          {currentForm.avgRating.toFixed(1)}
+                        </span>
+                        {currentForm.avgRating >= 9 && (
+                          <span className="text-sm" style={{ color: "#22C55E" }}>⭐</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-200">
+                        <span className="flex items-center gap-1">
+                          <span style={{ color: "#e5e7eb" }}>⚽</span>
+                          <span>{currentForm.totalGoals}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span style={{ color: "#e5e7eb" }}>🎯</span>
+                          <span>{currentForm.totalAssists}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div
                   className="p-6 rounded-3xl"
                   style={{
@@ -1876,11 +2183,18 @@ export default function HomePage() {
                         <strong className="text-gray-300">MVP:</strong> Representa qué tan seguido eres elegido el mejor jugador del partido.
                       </span>
                       <span className="block">
-                        <strong className="text-gray-300">Forma:</strong> Mide tu racha actual. Sumas 3 puntos por ganar y 1 por empatar en tus últimos 5 partidos. ¡Llegar al 100% significa que vienes de ganar 5 seguidos!
+                        <strong className="text-gray-300">Rating:</strong> Es la media de tus calificaciones del 1 al 10 convertida a porcentaje. Si promedias 10, verás este eje al 100%.
                       </span>
                     </p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Resultados sub-tab */}
+            {statsSubTab === "resultados" && (
+              <div className="space-y-4">
+                {/* Win Rate */}
                 <div
                   className="p-6 rounded-3xl text-center relative"
                   style={{
@@ -1896,6 +2210,79 @@ export default function HomePage() {
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-4">
                     <span className="text-3xl font-black">{statsData.winRate.toFixed(0)}%</span>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-white/10 text-left">
+                    <p className="text-[9px] text-gray-400 leading-relaxed">
+                      <strong className="text-gray-300">Win Rate:</strong> Es el porcentaje de partidos que ganó tu equipo sobre el total de partidos que registraste. Si jugaste 10 partidos y ganaste 6, tu Win Rate es 60%.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Racha de victorias */}
+                <div
+                  className="p-6 rounded-3xl flex items-center justify-between"
+                  style={{
+                    background: "rgba(10, 25, 10, 0.9)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🔥</span>
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">
+                        Racha de victorias
+                      </h4>
+                      <p className="text-sm text-gray-200 font-semibold mt-1">
+                        {resultStats.winsStreak} partido
+                        {resultStats.winsStreak === 1 ? "" : "s"} seguidos
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Racha con participación en gol */}
+                <div
+                  className="p-6 rounded-3xl flex items-center justify-between"
+                  style={{
+                    background: "rgba(10, 25, 10, 0.9)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">⚡</span>
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">
+                        Racha con G/A
+                      </h4>
+                      <p className="text-sm text-gray-200 font-semibold mt-1">
+                        {resultStats.gaStreak} partido
+                        {resultStats.gaStreak === 1 ? "" : "s"} seguidos
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Impacto ofensivo */}
+                <div
+                  className="p-6 rounded-3xl flex items-center justify-between"
+                  style={{
+                    background: "rgba(10, 25, 10, 0.9)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">💥</span>
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">
+                        Impacto ofensivo
+                      </h4>
+                      <p className="text-sm text-gray-200 font-semibold mt-1">
+                        {resultStats.offensiveImpact.toFixed(0)}%
+                      </p>
+                      <p className="text-[9px] text-gray-500 mt-1 max-w-xs text-left">
+                        Representa el porcentaje de goles de tu equipo en los que participaste directamente (goles + asistencias) sobre el total de goles del equipo.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1935,17 +2322,24 @@ export default function HomePage() {
                 </div>
 
                 <div
-                  className="p-6 rounded-3xl"
+                  className="p-6 rounded-3xl flex flex-col items-center justify-center text-center"
                   style={{
                     background: "rgba(10, 25, 10, 0.9)",
                     border: "1px solid rgba(255,255,255,0.1)",
                   }}
                 >
-                  <h4 className="text-[10px] font-black uppercase mb-4 text-gray-500 text-center">
-                    Goles vs Asistencias
-                  </h4>
-                  <div style={{ height: 200, width: "100%" }}>
-                    <Bar data={barChartData} options={chartOptions} />
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-2xl">🤝</span>
+                    <h4 className="text-[10px] font-black uppercase text-gray-400 tracking-widest">
+                      Participación en gol
+                    </h4>
+                    <p className="text-sm font-black mt-1">
+                      <span>{goalInvolvementPerMatch.toFixed(1)}</span>
+                      <span className="text-[11px] text-gray-400 ml-1">por partido</span>
+                    </p>
+                    <p className="text-[9px] text-gray-500 mt-1">
+                      (goles + asistencias) / partidos jugados
+                    </p>
                   </div>
                 </div>
               </div>
@@ -2768,7 +3162,7 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Filter buttons */}
+            {/* Filter buttons - formato */}
             <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar mb-4">
               <button
                 onClick={() => setHistorialFilter("all")}
@@ -2793,6 +3187,50 @@ export default function HomePage() {
                   F{f}
                 </button>
               ))}
+            </div>
+
+            {/* Tipo de partido filters */}
+            <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar mb-4">
+              <button
+                onClick={() => setHistorialTypeFilter("all")}
+                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  historialTypeFilter === "all"
+                    ? "bg-green-500 text-black"
+                      : "bg-white/10 text-white"
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setHistorialTypeFilter("friendly")}
+                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  historialTypeFilter === "friendly"
+                    ? "bg-green-500 text-black"
+                      : "bg-white/10 text-white"
+                }`}
+              >
+                Amistoso
+              </button>
+              <button
+                onClick={() => setHistorialTypeFilter("tournament")}
+                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  historialTypeFilter === "tournament"
+                    ? "bg-green-500 text-black"
+                      : "bg-white/10 text-white"
+                }`}
+              >
+                Torneo
+              </button>
+              <button
+                onClick={() => setHistorialTypeFilter("cup")}
+                className={`px-5 py-2 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
+                  historialTypeFilter === "cup"
+                    ? "bg-green-500 text-black"
+                      : "bg-white/10 text-white"
+                }`}
+              >
+                Copa
+              </button>
             </div>
 
             {/* Date filters */}
@@ -2913,7 +3351,7 @@ export default function HomePage() {
                                 borderLeft: `5px solid ${cardBorderByResult(m.result)}`,
                               }}
                             >
-                              {/* Header: Rival y MVP */}
+                              {/* Header: Rival, tipo de partido y MVP */}
                               <div className="flex items-start justify-between mb-3">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">
@@ -2935,6 +3373,13 @@ export default function HomePage() {
                                       </span>
                                     )}
                                   </div>
+                                  <p className="text-[8px] uppercase font-bold text-gray-500">
+                                    {m.matchType === "tournament"
+                                      ? "Torneo"
+                                      : m.matchType === "cup"
+                                        ? "Copa"
+                                        : "Amistoso"}
+                                  </p>
                                 </div>
                                 <div
                                   className="px-3 py-1 rounded-full text-[10px] font-black uppercase"
@@ -3155,25 +3600,18 @@ export default function HomePage() {
                     <option value={8}>Fútbol 8</option>
                     <option value={11}>Fútbol 11</option>
                   </select>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      setEditIsMvp(!editIsMvp);
-                      e.currentTarget.blur();
-                    }}
-                    className={`flex items-center justify-center bg-white/5 border rounded-xl p-3 gap-2 transition-colors ${
-                      editIsMvp ? "border-yellow-400" : "border-white/10"
-                    } outline-none`}
-                    title="Opcional"
-                  >
-                    <i
-                      className={`fas fa-star ${editIsMvp ? "text-yellow-400" : "text-gray-500"}`}
-                      style={{ fontSize: 18 }}
-                    ></i>
-                    <span className="text-[10px] font-black text-gray-400 uppercase">
-                      ¿Fuiste el MVP?
-                    </span>
-                  </button>
+                  <div>
+                    <select
+                      value={editMatchType || "friendly"}
+                      onChange={(e) => setEditMatchType(e.target.value as MatchType)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm text-gray-200 outline-none"
+                      required
+                    >
+                      <option value="friendly">Amistoso</option>
+                      <option value="tournament">Torneo</option>
+                      <option value="cup">Copa</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Marcador (Match Score) */}
@@ -3249,7 +3687,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Rendimiento personal (Goles / Asistencias con +/-) */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-white/5 border border-white/10 rounded-xl p-3">
                     <p className="text-[10px] font-black uppercase text-gray-400 mb-2 text-center">
                       Goles
@@ -3313,9 +3751,84 @@ export default function HomePage() {
                   </div>
                 </div>
 
+                {/* Calificación personal y control de MVP */}
+                <div className="flex flex-col gap-2 mb-4">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-[3]">
+                      <p className="text-[8px] text-gray-500 uppercase font-bold mb-1">
+                        Tu Calificación (1 - 10)
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={1}
+                          max={10}
+                          value={typeof editSelfRating === "number" ? editSelfRating : 7}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setEditSelfRating(v);
+                          }}
+                          className="flex-1 appearance-none h-2 rounded-full bg-white/10"
+                          style={{
+                            accentColor: ratingColor(
+                              typeof editSelfRating === "number" ? editSelfRating : 7,
+                            ),
+                          }}
+                        />
+                        <span className="text-base font-black w-7 text-center">
+                          <span
+                            style={{
+                              color: ratingColor(
+                                typeof editSelfRating === "number" ? editSelfRating : 7,
+                              ),
+                              textShadow:
+                                (typeof editSelfRating === "number"
+                                  ? editSelfRating
+                                  : 7) >= 9
+                                  ? "0 0 8px rgba(34,197,94,0.75)"
+                                  : "none",
+                            }}
+                          >
+                            {typeof editSelfRating === "number" ? editSelfRating : 7}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditIsMvp((v) => !v)}
+                    className={`w-full flex items-center justify-center gap-2 rounded-full border text-[11px] font-black uppercase tracking-widest transition-colors transition-shadow px-4 py-2 ${
+                      editIsMvp
+                        ? "bg-yellow-400/90 border-yellow-300 text-black shadow-[0_0_16px_rgba(251,191,36,0.55)]"
+                        : "bg-white/5 border-white/15 text-gray-300 hover:bg-white/10"
+                    }`}
+                    style={{
+                      boxShadow: editIsMvp ? "0 0 18px rgba(251,191,36,0.55)" : "none",
+                    }}
+                  >
+                    <i
+                      className={`${
+                        editIsMvp ? "fas" : "far"
+                      } fa-star ${editIsMvp ? "text-black" : "text-gray-400"}`}
+                      style={{ fontSize: 16 }}
+                    ></i>
+                    <span>
+                      {editIsMvp ? "MVP del partido" : "Marcar como MVP"}
+                    </span>
+                  </button>
+
+                  {!editIsMvp && (typeof editSelfRating === "number" ? editSelfRating : 7) >= 9 && (
+                    <p className="text-[8px] text-emerald-300 mt-1 font-medium">
+                      Con esta calificación podrías marcarte como MVP.
+                    </p>
+                  )}
+                </div>
+
                 <div>
                   <textarea
-                    placeholder='Opcional: ¿Cómo jugaste? ¿Algo destacado?'
+                    placeholder='Opcional: ¿Cómo jugaste? ¿Algo destacado? Agregá un link del partido'
                     value={editNotes}
                     maxLength={100}
                     onChange={(e) => {

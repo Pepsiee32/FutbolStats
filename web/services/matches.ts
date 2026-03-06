@@ -2,6 +2,8 @@
 import { supabase } from "@/lib/supabase";
 import { translateError } from "@/utils/errorTranslations";
 
+export type MatchType = "friendly" | "tournament" | "cup";
+
 export type Match = {
   id: string;
   date: string; // ISO
@@ -17,6 +19,12 @@ export type Match = {
   result: number | null;     // 1 win, 0 draw, -1 loss
   is_mvp: boolean;
   isMvp?: boolean; // Compatibilidad con código existente
+  // Calificación subjetiva (1-10)
+  self_rating?: number | null;
+  selfRating?: number | null;
+  // Tipo de partido
+  match_type?: MatchType | null;
+  matchType?: MatchType | null;
   notes: string | null;
   created_at?: string;
   updated_at?: string;
@@ -36,6 +44,10 @@ export type CreateMatchRequest = {
   result: number | null;
   is_mvp: boolean;
   isMvp?: boolean; // Compatibilidad con código existente
+  self_rating?: number | null;
+  selfRating?: number | null;
+  match_type?: MatchType | null;
+  matchType?: MatchType | null;
   notes?: string | null;
 };
 
@@ -68,12 +80,14 @@ export const matchesApi = {
       throw new Error(translateError(error.message));
     }
 
-    // Mapear is_mvp a isMvp para compatibilidad
-    return (data || []).map(match => ({
+    // Mapear is_mvp a isMvp, self_rating a selfRating y match_type a matchType para compatibilidad
+    return (data || []).map((match: any) => ({
       ...match,
       isMvp: match.is_mvp,
-      goalsScored: (match as any).goals_scored ?? (match as any).goalsScored ?? null,
-      goalsConceded: (match as any).goals_conceded ?? (match as any).goalsConceded ?? null,
+      goalsScored: match.goals_scored ?? match.goalsScored ?? null,
+      goalsConceded: match.goals_conceded ?? match.goalsConceded ?? null,
+      selfRating: match.self_rating ?? match.selfRating ?? null,
+      matchType: (match.match_type ?? match.matchType ?? "friendly") as MatchType,
     }));
   },
 
@@ -92,20 +106,34 @@ export const matchesApi = {
       throw new Error("Partido no encontrado");
     }
 
+    const anyData = data as any;
+
     return {
-      ...data,
-      isMvp: data.is_mvp,
-      goalsScored: (data as any).goals_scored ?? (data as any).goalsScored ?? null,
-      goalsConceded: (data as any).goals_conceded ?? (data as any).goalsConceded ?? null,
+      ...anyData,
+      isMvp: anyData.is_mvp,
+      goalsScored: anyData.goals_scored ?? anyData.goalsScored ?? null,
+      goalsConceded: anyData.goals_conceded ?? anyData.goalsConceded ?? null,
+      selfRating: anyData.self_rating ?? anyData.selfRating ?? null,
+      matchType: (anyData.match_type ?? anyData.matchType ?? "friendly") as MatchType,
     };
   },
 
   create: async (req: CreateMatchRequest): Promise<Match> => {
-    // Mapear isMvp a is_mvp si viene en el request
+    // Mapear isMvp/selfRating a is_mvp/self_rating y matchType a match_type si vienen en el request
     const payload: any = { ...req };
     if ('isMvp' in payload && !('is_mvp' in payload)) {
       payload.is_mvp = payload.isMvp;
       delete payload.isMvp;
+    }
+
+    if ("selfRating" in payload && !("self_rating" in payload)) {
+      payload.self_rating = payload.selfRating;
+      delete payload.selfRating;
+    }
+
+    if ("matchType" in payload && !("match_type" in payload)) {
+      payload.match_type = payload.matchType;
+      delete payload.matchType;
     }
 
     // Marcador: mapear camelCase y/o eliminar si la tabla no tiene las columnas
@@ -150,20 +178,34 @@ export const matchesApi = {
       throw new Error("Error al crear partido");
     }
 
+    const anyData = data as any;
+
     return {
-      ...data,
-      isMvp: data.is_mvp,
-      goalsScored: (data as any).goals_scored ?? (data as any).goalsScored ?? null,
-      goalsConceded: (data as any).goals_conceded ?? (data as any).goalsConceded ?? null,
+      ...anyData,
+      isMvp: anyData.is_mvp,
+      goalsScored: anyData.goals_scored ?? anyData.goalsScored ?? null,
+      goalsConceded: anyData.goals_conceded ?? anyData.goalsConceded ?? null,
+      selfRating: anyData.self_rating ?? anyData.selfRating ?? null,
+      matchType: (anyData.match_type ?? anyData.matchType ?? "friendly") as MatchType,
     };
   },
 
   update: async (id: string, req: UpdateMatchRequest): Promise<Match> => {
-    // Mapear isMvp a is_mvp si viene en el request
+    // Mapear isMvp/selfRating a is_mvp/self_rating y matchType a match_type si vienen en el request
     const payload: any = { ...req };
     if ('isMvp' in payload && !('is_mvp' in payload)) {
       payload.is_mvp = payload.isMvp;
       delete payload.isMvp;
+    }
+
+    if ("selfRating" in payload && !("self_rating" in payload)) {
+      payload.self_rating = payload.selfRating;
+      delete payload.selfRating;
+    }
+
+    if ("matchType" in payload && !("match_type" in payload)) {
+      payload.match_type = payload.matchType;
+      delete payload.matchType;
     }
 
     // Marcador: mapear camelCase y/o eliminar si la tabla no tiene las columnas
@@ -199,11 +241,15 @@ export const matchesApi = {
       throw new Error("Error al actualizar partido");
     }
 
+    const anyData = data as any;
+
     return {
-      ...data,
-      isMvp: data.is_mvp,
-      goalsScored: (data as any).goals_scored ?? (data as any).goalsScored ?? null,
-      goalsConceded: (data as any).goals_conceded ?? (data as any).goalsConceded ?? null,
+      ...anyData,
+      isMvp: anyData.is_mvp,
+      goalsScored: anyData.goals_scored ?? anyData.goalsScored ?? null,
+      goalsConceded: anyData.goals_conceded ?? anyData.goalsConceded ?? null,
+      selfRating: anyData.self_rating ?? anyData.selfRating ?? null,
+      matchType: (anyData.match_type ?? anyData.matchType ?? "friendly") as MatchType,
     };
   },
 
